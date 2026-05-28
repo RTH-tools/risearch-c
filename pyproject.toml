@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "risearch-tauso"
+version = "1.2.0"
+description = "Prebuilt RIsearch1 binary (RNA-RNA / RNA-DNA / DNA-DNA interaction search), tauso fork, packaged for Python."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "GPL-3.0-or-later"}
+authors = [
+    {name = "Anne Wenzel"},
+    {name = "Giulia I Corsi"},
+]
+maintainers = [
+    {name = "Michael Kovaliov"},
+]
+keywords = ["bioinformatics", "rna", "rna-rna", "rna-dna", "interaction", "antisense", "oligonucleotide"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+
+[project.urls]
+Homepage = "https://github.com/RedPenguin100/risearch"
+Source = "https://github.com/RedPenguin100/risearch"
+Upstream = "https://rth.dk/resources/risearch/"
+
+[project.scripts]
+risearch-tauso = "risearch_tauso.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.package-data]
+"risearch_tauso" = ["bin/RIsearch"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["risearch_tauso*"]
+
+[tool.cibuildwheel]
+build = "cp39-manylinux_x86_64 cp310-manylinux_x86_64 cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64"
+build-verbosity = 1
+# manylinux2014 ships gcc + make, which is all we need.
+manylinux-x86_64-image = "manylinux2014"
+# Smoke-test the wheel after build: the binary must be runnable.
+test-command = "python -c \"import risearch_tauso, subprocess; p = risearch_tauso.executable_path(); print(p); subprocess.run([p, '-h'], check=False)\""

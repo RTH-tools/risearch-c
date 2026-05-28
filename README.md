@@ -1,5 +1,32 @@
 # RIsearch
-RIsearch: a tool for large-scale RNA–RNA, RNA-DNA, and DNA-DNA interaction prediction
+RIsearch: a tool for large-scale RNA–RNA, RNA-DNA, and DNA-DNA interaction prediction.
+
+## Python package (RIsearch1, tauso fork)
+
+A precompiled RIsearch1 binary from this fork is published to PyPI under the
+name `risearch-tauso`, to make RIsearch a normal Python dependency for tauso
+and any other downstream tool that wants the fork's flavor of RIsearch1:
+
+```bash
+pip install risearch-tauso
+```
+
+```python
+import risearch_tauso, subprocess
+subprocess.run([risearch_tauso.executable_path(), "-q", "query.fa", "-t", "target.fa"])
+```
+
+Or as a CLI shim (forwards all args straight to the bundled binary):
+
+```bash
+risearch-tauso -q query.fa -t target.fa
+python -m risearch_tauso -q query.fa -t target.fa
+```
+
+The PyPI package is **not** the canonical upstream RIsearch — it is the
+tauso-team fork. Use the upstream RIsearch from RTH-tools if you want the
+unmodified tool. The Python wrapper currently ships **RIsearch1** only;
+RIsearch2 still needs to be built from source per the instructions below.
 
 ## Installation
 

@@ -1,2 +1,11 @@
 bin/
 *.o
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+src/risearch_tauso/bin/
+__pycache__/
+*.py[cod]
+.venv/
