@@ -20,8 +20,6 @@
 ***********************************************************/
 
 
-
-
 /*equals dsm for extpen=0 */
 /* based on Turner 1999 parameters. */
 /* Compared to RIsearch1.1, here ending with a bulge has the same cost as continuing a bulge.*/

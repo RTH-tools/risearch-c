@@ -13,6 +13,6 @@ typedef struct fastafile_s {
   char  buffer[FASTA_MAXLINE];
 } FASTAFILE;
 
-extern FASTAFILE *OpenFASTA(char *seqfile);
+extern FASTAFILE *OpenFASTA(const char *seqfile);
 extern int        ReadFASTA(FASTAFILE *fp, char **ret_seq, char **ret_name, unsigned long *ret_L);
 extern void       CloseFASTA(FASTAFILE *ffp);

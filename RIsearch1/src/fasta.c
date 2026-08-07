@@ -94,7 +94,7 @@
  *           CloseFASTA() "always succeeds" and returns void.
  */
 FASTAFILE *
-OpenFASTA(char *seqfile)
+OpenFASTA(const char *seqfile)
 {
   FASTAFILE *ffp;
 

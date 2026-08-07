@@ -9,3 +9,4 @@ src/risearch_tauso/bin/
 __pycache__/
 *.py[cod]
 .venv/
+*.idea/
