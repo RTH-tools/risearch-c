@@ -1,6 +1,10 @@
 #pragma once
 
+#include <stdio.h>
+
 #include <stdlib.h>
+
+#include "memory/MallocRAII.hpp"
 
 static int** allocIntMatrix(int rows, int cols)
 {
@@ -72,16 +76,10 @@ static void freeFloatMatrix(float** m, int rows)
     free((char*)(m));
 }
 
-unsigned char * allocate_char_array (int length)
-{
-    char *string;
-    int i;
-
-    string = malloc (length + 1 * sizeof (char));
-    for (i = 0; i < length; i++)
+static void fill_char_array(char* buf, int length) {
+    for (auto i = 0u; i < length; i++)
     {
-        string[i] = 'X';
+        buf[i] = 'X';
     }
-    string[length] = '\0';
-    return string;
+    buf[length] = '\0';
 }

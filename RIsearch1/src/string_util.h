@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string.h>
+
 /* can save first traversal as length is known before! */
 static int reverse_inplace(char* str_beg, int j)
 {

@@ -1,10 +1,10 @@
 """
 Build hook for the `risearch-tauso` Python package.
 
-The C source for RIsearch1 lives in `RIsearch1/src/` and is compiled by its own
-Makefile to `RIsearch1/bin/RIsearch`. This script wraps that build into a normal
-setuptools step: at wheel-build time it runs `make`, then copies the binary into
-the package as `risearch_tauso/bin/RIsearch` so it ships as package data.
+The C source for RIsearch1 lives in `RIsearch1/src/` and is compiled by CMake to
+`RIsearch1/bin/RIsearch`. This script wraps that build into a normal setuptools
+step: at wheel-build time it runs cmake, then copies the binary into the package
+as `risearch_tauso/bin/RIsearch` so it ships as package data.
 
 All static metadata is in `pyproject.toml`.
 """
@@ -89,15 +89,22 @@ def _build_risearch_binary(force_target_dir=None):
         )
 
     os.makedirs(bin_dir, exist_ok=True)
+    build_dir = os.path.join(base_dir, "build")
+    # Tests need googletest, which the wheel build has no reason to fetch.
+    configure = [
+        "cmake", "-S", base_dir, "-B", build_dir,
+        "-DCMAKE_BUILD_TYPE=Release", "-DRISEARCH_BUILD_TESTS=OFF",
+    ]
     try:
-        subprocess.check_call(["make", "-C", src_dir])
+        subprocess.check_call(configure)
+        subprocess.check_call(["cmake", "--build", build_dir, "--target", BINARY_NAME, "-j"])
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"make failed to compile RIsearch: {e}")
+        raise RuntimeError(f"cmake failed to compile RIsearch: {e}")
 
     compiled_bin = os.path.join(bin_dir, BINARY_NAME)
     if not os.path.exists(compiled_bin):
         raise FileNotFoundError(
-            f"make ran successfully, but {compiled_bin} was not produced."
+            f"cmake ran successfully, but {compiled_bin} was not produced."
         )
 
     os.makedirs(dest_dir, exist_ok=True)

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <limits.h>
+#include <ctype.h>
+
 #include <stdio.h>
 
 #define NEGINF INT_MIN/2

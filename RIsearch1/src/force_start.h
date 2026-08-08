@@ -1,6 +1,14 @@
 #pragma once
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
+#include "debug_print.h"
+#include "nucleotide.h"
+
 #include "alignment.h"
+#include "energy.hpp"
 #include "matrix_operations.h"
 #include "operations.h"
 
@@ -59,9 +67,6 @@ static void RIs_force_start_end_weighted (int force_start_val,
   float w1, w2;
   int startpos_found;		/* used in backtrack, true if start pos has been reached */
   float mVal, xVal, yVal;	/* values coming from M, Ix, Iy. Not possible to start a new alignment at any position, due to the force start. */
-  char *query_alignment, *target_alignment;	/*used to store query and target alignment symbols in backtracking */
-  float max_score;		/*max score found in a certain column */
-  float energy;			/*energy corresponding to a given max_score */
 
   M = allocFloatMatrix (m + 1, n + 1);	/* (Mis)Match */
   Ix = allocFloatMatrix (m + 1, n + 1);	/* Insertion in x(=query), so x paired to gap (in y) */
@@ -213,10 +218,15 @@ static void RIs_force_start_end_weighted (int force_start_val,
     {				/*n is the number of columns, m is the number of rows.  NOTE: here we put colj = n because we only want the interaction that ends at position n (ends at the 5' of the target sequence, which is in 3'-5' direction) */
       /*printf("%d\n",m);
          printf("%d\n",n); */
-      query_alignment = allocate_char_array (m);	/* no need to allocate +1 for \0 since the matrix already contain 1 position more for - */
-      target_alignment = allocate_char_array (n);	/* no need to allocate +1 for \0 since the matrix already contain 1 position more for - */
+
+  	/*used to store query and target alignment symbols in backtracking */
+    MallocRAII <char> query_alignment(m + 1); /* no need to allocate +1 for \0 since the matrix already contain 1 position more for - */
+  	fill_char_array(query_alignment.get(), m);
+  	MallocRAII<char> target_alignment(n+1);        /* no need to allocate +1 for \0 since the matrix already contain 1 position more for - */
+  	fill_char_array(target_alignment.get(), n);
+
       /*printf("col : %d\n",colj); */
-      max_score = find_max_value_f (M, Ix, Iy, &k, &i, colj, m, dsm, qseq, tseq);	/*given arrays representing columns, we want to find the row position in which the max score is reached. K is 0-1-2 M Ix Iy - should always be 0 to begin with. NOTE: in this new version we search only the maximums in row m (last row) because we want to force the interaction to end at 3' of query */
+      const auto max_score = find_max_value_f (M, Ix, Iy, &k, &i, colj, m, dsm, qseq, tseq);	/*given arrays representing columns, we want to find the row position in which the max score is reached. K is 0-1-2 M Ix Iy - should always be 0 to begin with. NOTE: in this new version we search only the maximums in row m (last row) because we want to force the interaction to end at 3' of query */
       /*note that i and k are modified in place in the function, since we are passing the pointers */
       j = colj;
       startpos_found = 0;
@@ -288,8 +298,8 @@ static void RIs_force_start_end_weighted (int force_start_val,
 		}
 	      set_alignment_symbols (index2nt (qseq[i - 1]),
 				     index2nt (tseq[j - 1]),
-				     &query_alignment[i - 1],
-				     &target_alignment[j - 1]);
+				     &query_alignment.get()[i - 1],
+				     &target_alignment.get()[j - 1]);
 	      i = i - 1;
 	      j = j - 1;
 	    }
@@ -329,7 +339,7 @@ static void RIs_force_start_end_weighted (int force_start_val,
 		      exit (1);
 		    }
 		}
-	      query_alignment[i - 1] = 'B';
+	      query_alignment.get()[i - 1] = 'B';
 	      i = i - 1;
 	    }
 	  else if (k == 2)
@@ -376,7 +386,7 @@ static void RIs_force_start_end_weighted (int force_start_val,
 		      exit (1);
 		    }
 		}
-	      target_alignment[j - 1] = 'B';
+	      target_alignment.get()[j - 1] = 'B';
 	      j = j - 1;
 	    }
 	  else
@@ -395,23 +405,10 @@ static void RIs_force_start_end_weighted (int force_start_val,
 	      exit (1);
 	    }
 	}
-      printf ("%s\t%s\n", query_alignment, target_alignment);
+      printf ("%s\t%s\n", query_alignment.get(), target_alignment.get());
 
-      if (!(strcmp (matname, "t99")) || !(strcmp (matname, "t04")))
-	{
-	  energy = (max_score - force_start_val - 559.0) / (-100.0);
-	}
-      else if (!(strcmp (matname, "su95"))
-	       || !(strcmp (matname, "su95_noGU")))
-	{
-	  energy = (max_score - force_start_val - 249.0) / (-100.0);
-	}
-      else
-	{
-	  energy = (max_score - force_start_val - 363.0) / (-100.0);
-	}
-      printf ("Free energy [kcal/mol] (No extension penalty): %.2f (%f)\n",
-	      energy, max_score - force_start_val);
+  	const auto energy = (max_score - force_start_val - reference_from_matrix (matname)) / (-100.0);
+  	printf ("Free energy [kcal/mol] (No extension penalty): %.2f (%f)\n", energy, max_score - force_start_val);
     }
 
   freeFloatMatrix (M, m + 1);
@@ -428,10 +425,8 @@ static void RIs_force_start_end_init (int force_start_val, const char *pos_weigh
 			  const char *matname	/* name of the scoring matrix */
   )
 {
-  int i;
   unsigned char *tmp;
   int testmax;
-  float *noweight;
 
   IA *maxHit;
   tmp = malloc ((len_seq2) * sizeof (tseqIx));
@@ -442,7 +437,7 @@ static void RIs_force_start_end_init (int force_start_val, const char *pos_weigh
   maxHit->ali_ia = malloc (testmax * sizeof (char));
 
   /*reverting seq2 (target) */
-  for (i = 0; i < len_seq2; i++)
+  for (auto i = 0u; i < len_seq2; i++)
     {
       tmp[i] = tseqIx[len_seq2 - 1 - i];
     }
@@ -491,13 +486,13 @@ static void RIs_force_start_end_init (int force_start_val, const char *pos_weigh
 				   } */
   else if (!strcmp (pos_weights, "noweights"))
     {
-      noweight = malloc ((len_seq1 - 1) * sizeof (float));
-      for (i = 0; i < (len_seq1 - 1); ++i)
+  	MallocRAII<float> noweight(len_seq1 - 1);
+      for (auto i = 0u; i < (len_seq1 - 1); ++i)
 	{
-	  noweight[i] = 1.0;
+	  noweight.get()[i] = 1.0;
 	}
       RIs_force_start_end_weighted (force_start_val, qseqIx, tmp, len_seq1, len_seq2,
-				    &noweight[0], dsm, maxHit, matname);
+				    &noweight.get()[0], dsm, maxHit, matname);
     }
   else
     {

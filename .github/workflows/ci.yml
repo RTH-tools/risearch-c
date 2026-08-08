@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Build and test RIsearch1
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # googletest is fetched by FetchContent; cache it so PRs don't re-clone it.
+      - name: Cache googletest
+        uses: actions/cache@v4
+        with:
+          path: RIsearch1/build/_deps
+          key: gtest-v1.15.2-${{ runner.os }}
+
+      - name: Configure
+        run: cmake -S RIsearch1 -B RIsearch1/build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build RIsearch1/build -j
+
+      - name: Tests
+        run: ./RIsearch1/build/tests/risearch1_tests
+
+      # setup.py builds the wheel through CMake with tests disabled; check that
+      # path too, since it is what actually ships.
+      - name: Wheel build path
+        run: |
+          cmake -S RIsearch1 -B /tmp/wheelbuild -DCMAKE_BUILD_TYPE=Release -DRISEARCH_BUILD_TESTS=OFF
+          cmake --build /tmp/wheelbuild --target RIsearch -j
+          test -x RIsearch1/bin/RIsearch

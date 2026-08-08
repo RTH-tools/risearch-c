@@ -17,9 +17,9 @@
  *
  * Purpose:  A very rudimentary FASTA file reading API. Designed
  *           for simplicity and clarity, not for robustness.
- *           
+ *
  *           The API is:
- *           
+ *
  *           ffp = OpenFASTA(seqfile);
  *           while (ReadFASTA(ffp, &seq, &name, &seqlen)
  *           {
@@ -28,23 +28,23 @@
  *             free(seq);
  *           }
  *           CloseFASTA(ffp);
- *           
- * Args:     
+ *
+ * Args:
  *           seqfile   - name of a FASTA file to open.
  *           seq       - RETURN: one sequence
  *           name      - RETURN: name of the sequence
  *           seqlen    - RETURN: length of the sequence in residues
  *           ffp       - ptr to a FASTAFILE object.
- *           
- * Commentary: 
+ *
+ * Commentary:
  *           The basic problem with reading FASTA files is that there is
- *           no end-of-record indicator. When you're reading sequence n, 
+ *           no end-of-record indicator. When you're reading sequence n,
  *           you don't know you're done until you've read the header line
- *           for sequence n+1, which you won't parse 'til later (when 
+ *           for sequence n+1, which you won't parse 'til later (when
  *           you're reading in the sequence n+1). One common trick for
  *           this is to implement a one-line "lookahead" buffer that you
- *           can peek at, before parsing later. 
- *           
+ *           can peek at, before parsing later.
+ *
  *           This buffer is kept in a small structure (a FASTAFILE), rather
  *           than in a static char[] in the function. This allows
  *           us to have multiple FASTA files open at once. The static approach
@@ -58,10 +58,10 @@
  *           and while the code in the first function call is still executing! -
  *           without overwriting or corrupting any static storage in the
  *           function. Statics have fewer uses now (for example, to
- *           test that some initialization code for a function is run once 
+ *           test that some initialization code for a function is run once
  *           and only once.)
- * 
- * Limitations:          
+ *
+ * Limitations:
  *           There is no error handling, for clarity's sake. Also,
  *           the parser is brittle. Improper FASTA files (for instance,
  *           blank lines between records) will cause unexpected
@@ -69,7 +69,7 @@
  *           In real life, they have to deal with absolutely anything the user might
  *           pass as a "FASTA file"; and either parse it correctly,
  *           or detect that it's an invalid format and fail cleanly.
- *           
+ *
  *           Lines are read in from the file using ANSI C's fgets(). fgets()
  *           requires a maximum buffer length (here, FASTA_MAXLINE, which is
  *           defined as 512 in bio5495.h). Some FASTA files have very long
@@ -78,19 +78,19 @@
  *           avoided. An example of a replacement for fgets() that dynamically
  *           allocates its buffer size and allows any line length is
  *           SQUID's sre_fgets().
- *           
+ *
  *           We use ANSI C's strtok() to parse the sequence name out of the line.
- *           strtok() is deprecated in modern programs because it is not threadsafe. 
+ *           strtok() is deprecated in modern programs because it is not threadsafe.
  *           (See comments above.) An example of a threadsafe version is
  *           SQUID's sre_strtok().
- *           
- * Returns:  
+ *
+ * Returns:
  *           OpenFASTA() returns a FASTAFILE pointer, or NULL on failure (for
  *           instance, if the file doesn't exist, or isn't readable).
- *           
+ *
  *           ReadFASTA() returns 1 on success, or a 0 if there are no
  *           more sequences to read in the file.
- *           
+ *
  *           CloseFASTA() "always succeeds" and returns void.
  */
 FASTAFILE *
@@ -100,11 +100,11 @@ OpenFASTA(const char *seqfile)
 
   ffp = malloc(sizeof(FASTAFILE));
   if (strcmp(seqfile, "-")) { /*returns 0/FALSE if they are same! */
-    ffp->fp = fopen(seqfile, "r");              /* Assume seqfile exists & readable!   */   
+    ffp->fp = fopen(seqfile, "r");              /* Assume seqfile exists & readable!   */
   } else {
     ffp->fp = stdin;
-  }  
-  if (ffp->fp == NULL) { free(ffp); return NULL; } 
+  }
+  if (ffp->fp == NULL) { free(ffp); return NULL; }
   if ((fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp)) == NULL)
     { free(ffp); return NULL; }
   return ffp;
@@ -118,10 +118,10 @@ ReadFASTA(FASTAFILE *ffp, char **ret_seq, char **ret_name, unsigned long *ret_L)
   char *seq;
   int   n;
   int   nalloc;
-  
+
   /* Peek at the lookahead buffer; see if it appears to be a valid FASTA descline.
    */
-  if (ffp->buffer[0] != '>') return 0;    
+  if (ffp->buffer[0] != '>') return 0;
 
   /* Parse out the name: the first non-whitespace token after the >
    */
@@ -160,7 +160,7 @@ ReadFASTA(FASTAFILE *ffp, char **ret_seq, char **ret_name, unsigned long *ret_L)
   *ret_seq  = seq;
   *ret_L    = n;
   return 1;
-}      
+}
 
 void
 CloseFASTA(FASTAFILE *ffp)
@@ -187,8 +187,8 @@ CloseFASTA(FASTAFILE *ffp)
 
 #ifdef TEST_FASTA_STUFF
 /* Test the fasta parsing API.
- *  to compile:  gcc -o test -DTEST_FASTA_STUFF -Wall -g fasta.c 
- *  to run:      ./test myseqs.fa 
+ *  to compile:  gcc -o test -DTEST_FASTA_STUFF -Wall -g fasta.c
+ *  to run:      ./test myseqs.fa
  */
 int
 main(int argc, char **argv)
