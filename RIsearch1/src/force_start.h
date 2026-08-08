@@ -1,22 +1,25 @@
 #pragma once
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <limits.h>
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <climits>
 #include "debug_print.h"
 #include "nucleotide.h"
 
+#include "InteractionAlignment.h"
 #include "alignment.h"
 #include "energy.hpp"
 #include "matrix_operations.h"
 #include "operations.h"
+#include "memory/MallocRAII.hpp"
 
 #define GAP 5 /* position of '-' in alphabet, not as define if read from matrix... */
 
 
-static float find_max_value_f(float **M, float **Ix, float **Iy, int *k, int *i, int j, int n,
-                              short dsm[6][6][6][6], unsigned char *qseq, unsigned char *tseq)
+static float find_max_value_f(float** M, float** Ix, float** Iy, int* k, int* i, int j, int n,
+                              short dsm[6][6][6][6], unsigned char* qseq, unsigned char* tseq)
 {
     float max = 0.0;
     *i = 0; /*row in which maxval is found */
@@ -39,24 +42,19 @@ static float find_max_value_f(float **M, float **Ix, float **Iy, int *k, int *i,
     return max;
 }
 
-typedef struct {
-    int qbeg, qend, tbeg, tend;
-    int max;
-    char *ali_seq1, *ali_seq2, *ali_ia;
-} IA;
-
-
 static void
 RIs_force_start_end_weighted(int force_start_val,
-                             unsigned char *qseq,   /* query sequence - numeric representation */
-                             unsigned char *tseq,   /* target sequence - reversed */
+                             unsigned char* qseq,   /* query sequence - numeric representation */
+                             unsigned char* tseq,   /* target sequence - reversed */
                              int m,                 /* query seq length */
                              int n,                 /* target seq length */
-                             float *weights,        /*array of weights */
+                             float* weights,        /*array of weights */
                              short dsm[6][6][6][6], /* scoring matrix */
-                             IA *hit,               /* pointer to struct, fill results */
-                             const char *matname)
+                             IA* hit,               /* pointer to struct, fill results */
+                             const char* matname)
 {
+    const auto reference = reference_from_matrix(matname);
+
     float **M, **Ix, **Iy; /* matrices for alignment scores ending in different states */
     int i, j, k, colj;
     float w1, w2;
@@ -302,8 +300,7 @@ RIs_force_start_end_weighted(int force_start_val,
                     exit(1);
                 }
                 set_alignment_symbols(index2nt(qseq[i - 1]), index2nt(tseq[j - 1]),
-                                      &query_alignment.get()[i - 1],
-                                      &target_alignment.get()[j - 1]);
+                                      &query_alignment[i - 1], &target_alignment[j - 1]);
                 i = i - 1;
                 j = j - 1;
             } else if (k == 1) { /* seq1(query) paired to a gap (in target). Bulge on top of bp */
@@ -328,7 +325,7 @@ RIs_force_start_end_weighted(int force_start_val,
                         exit(1);
                     }
                 }
-                query_alignment.get()[i - 1] = 'B';
+                query_alignment[i - 1] = 'B';
                 i = i - 1;
             } else if (k == 2) { /* seq2(target) paired to a gap (in query). bulge on top of bp. */
                 if (i == 1) {
@@ -359,7 +356,7 @@ RIs_force_start_end_weighted(int force_start_val,
                         exit(1);
                     }
                 }
-                target_alignment.get()[j - 1] = 'B';
+                target_alignment[j - 1] = 'B';
                 j = j - 1;
             } else {
                 fprintf(stderr, "\nThis should really NEVER happen!\n");
@@ -378,7 +375,7 @@ RIs_force_start_end_weighted(int force_start_val,
         printf("%s\t%s\n", query_alignment.get(), target_alignment.get());
 
         const auto energy =
-            (max_score - force_start_val - reference_from_matrix(matname)) / (-100.0);
+            (max_score - force_start_val - reference) / (-100.0);
         printf("Free energy [kcal/mol] (No extension penalty): %.2f (%f)\n", energy,
                max_score - force_start_val);
     }
@@ -389,25 +386,23 @@ RIs_force_start_end_weighted(int force_start_val,
 }
 
 static void
-RIs_force_start_end_init(int force_start_val, const char *pos_weights,
-                         unsigned char *qseqIx, /* query sequence - numeric representation */
-                         unsigned char *tseqIx, /* target sequence  */
+RIs_force_start_end_init(int force_start_val, const char* pos_weights,
+                         unsigned char* qseqIx, /* query sequence - numeric representation */
+                         unsigned char* tseqIx, /* target sequence  */
                          int len_seq1,          /* query seq length */
                          int len_seq2,          /* target seq length */
                          short dsm[6][6][6][6], /* scoring matrix */
-                         const char *matname    /* name of the scoring matrix */
+                         const char* matname    /* name of the scoring matrix */
 )
 {
-    unsigned char *tmp;
     int testmax;
 
-    IA *maxHit;
-    tmp = malloc((len_seq2) * sizeof(tseqIx));
-    maxHit = malloc(sizeof(IA));
+    IA maxHit;
+    MallocRAII<unsigned char> tmp(len_seq2);
     testmax = (int)(1.5 * len_seq2);
-    maxHit->ali_seq1 = malloc(testmax * sizeof(char));
-    maxHit->ali_seq2 = malloc(testmax * sizeof(char));
-    maxHit->ali_ia = malloc(testmax * sizeof(char));
+    maxHit.ali_seq1 = MallocRAII<char>(testmax);
+    maxHit.ali_seq2 = MallocRAII<char>(testmax);
+    maxHit.ali_ia = MallocRAII<char>(testmax);
 
     /*reverting seq2 (target) */
     for (auto i = 0u; i < len_seq2; i++) {
@@ -428,11 +423,11 @@ RIs_force_start_end_init(int force_start_val, const char *pos_weights,
             exit(1);
         }
         if (size_wC20_5p_3p == len_seq1 - 1) {
-            RIs_force_start_end_weighted(force_start_val, qseqIx, tmp, len_seq1, len_seq2,
-                                         &wC20_5p_3p[0], dsm, maxHit, matname);
+            RIs_force_start_end_weighted(force_start_val, qseqIx, tmp.get(), len_seq1, len_seq2,
+                                         &wC20_5p_3p[0], dsm, &maxHit, matname);
         } else {
-            RIs_force_start_end_weighted(force_start_val, qseqIx, tmp, len_seq1, len_seq2,
-                                         &wC20_5p_3p[size_wC20_5p_3p + 1 - len_seq1], dsm, maxHit,
+            RIs_force_start_end_weighted(force_start_val, qseqIx, tmp.get(), len_seq1, len_seq2,
+                                         &wC20_5p_3p[size_wC20_5p_3p + 1 - len_seq1], dsm, &maxHit,
                                          matname);
         }
     } /*
@@ -455,10 +450,10 @@ RIs_force_start_end_init(int force_start_val, const char *pos_weights,
     else if (!strcmp(pos_weights, "noweights")) {
         MallocRAII<float> noweight(len_seq1 - 1);
         for (auto i = 0u; i < (len_seq1 - 1); ++i) {
-            noweight.get()[i] = 1.0;
+            noweight[i] = 1.0;
         }
-        RIs_force_start_end_weighted(force_start_val, qseqIx, tmp, len_seq1, len_seq2,
-                                     &noweight.get()[0], dsm, maxHit, matname);
+        RIs_force_start_end_weighted(force_start_val, qseqIx, tmp.get(), len_seq1, len_seq2,
+                                     &noweight[0], dsm, &maxHit, matname);
     } else {
         fprintf(stderr, "Undefined weights array. Existing weights verctors are CRISPR_20nt_5p_3p "
                         "and noweights. To add a new weights vector, create an array in weights.c "

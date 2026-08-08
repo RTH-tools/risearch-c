@@ -12,10 +12,10 @@
 
 namespace {
 
-const char *kQuery = RISEARCH_TEST_DATA "/query.fa";
-const char *kTarget = RISEARCH_TEST_DATA "/target.fa";
+const char* kQuery = RISEARCH_TEST_DATA "/query.fa";
+const char* kTarget = RISEARCH_TEST_DATA "/target.fa";
 
-std::vector<std::string> BaseArgs(const char *min_score)
+std::vector<std::string> BaseArgs(const char* min_score)
 {
     return {"-q", kQuery, "-t",        kTarget, "-s", min_score, "-d",
             "30", "-m",   "su95_noGU", "-n",    "0",  "-R",      "-p2"};
@@ -50,9 +50,9 @@ TEST(EndToEnd, IsDeterministic)
 TEST(EndToEnd, ReportsEveryQueryAgainstEveryTarget)
 {
     const std::string out = risearch_test::Run(BaseArgs("400"));
-    for (const char *q : {"aso1", "aso2"})
+    for (const char* q : {"aso1", "aso2"})
         EXPECT_NE(out.find(q), std::string::npos) << "missing query " << q;
-    for (const char *t : {"gene1", "gene2"})
+    for (const char* t : {"gene1", "gene2"})
         EXPECT_NE(out.find(t), std::string::npos) << "missing target " << t;
 }
 

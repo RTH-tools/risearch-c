@@ -17,11 +17,21 @@ set(RISEARCH_MATPATH "${CMAKE_CURRENT_SOURCE_DIR}/../tables" CACHE STRING
     "Directory holding energy matrix files")
 
 set(RISEARCH1_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-file(GLOB RISEARCH1_SOURCES CONFIGURE_DEPENDS
-     ${RISEARCH1_SRC}/*.c ${RISEARCH1_SRC}/*.cpp
-     ${RISEARCH1_SRC}/fasta/*.c ${RISEARCH1_SRC}/fasta/*.cpp)
+# Every source under src/, at any depth, so a new subdirectory needs no CMake change.
+file(GLOB_RECURSE RISEARCH1_SOURCES CONFIGURE_DEPENDS
+     ${RISEARCH1_SRC}/*.c ${RISEARCH1_SRC}/*.cpp)
 
-set(RISEARCH1_INCLUDES ${RISEARCH1_SRC} ${RISEARCH1_SRC}/fasta)
+# Same for the include path: every directory that holds a header goes on it, so
+# "Matrix.h" and "math/Matrix.h" both resolve.
+file(GLOB_RECURSE RISEARCH1_HEADERS CONFIGURE_DEPENDS
+     ${RISEARCH1_SRC}/*.h ${RISEARCH1_SRC}/*.hpp)
+set(RISEARCH1_INCLUDES ${RISEARCH1_SRC})
+foreach(header ${RISEARCH1_HEADERS})
+    get_filename_component(dir ${header} DIRECTORY)
+    list(APPEND RISEARCH1_INCLUDES ${dir})
+endforeach()
+list(REMOVE_DUPLICATES RISEARCH1_INCLUDES)
+
 set(RISEARCH1_DEFINES MATPATH="${RISEARCH_MATPATH}" RISVERSION=1)
 # -fpermissive downgrades the void*-to-T* conversions that C allows implicitly and
 # C++ does not. It is scaffolding for the C-to-C++ move: each malloc site wants a

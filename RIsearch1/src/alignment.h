@@ -1,7 +1,7 @@
 #pragma once
 
-static void set_alignment_symbols(char query_nt, char target_nt, char *query_alignment,
-                                  char *target_alignment)
+static void set_alignment_symbols(char query_nt, char target_nt, char* query_alignment,
+                                  char* target_alignment)
 {
     /*this function takes two nucleotides as inputs and set characters in the alignment string to:
      | : if the two nt can base pair,

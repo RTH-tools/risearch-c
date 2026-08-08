@@ -57,8 +57,8 @@ static char index2nt(unsigned char ix)
 }
 
 
-static int seq2ix(int len, const char *seq, unsigned char *retIx, const char *name,
-                  const char *type)
+static int seq2ix(int len, const char* seq, unsigned char* retIx, const char* name,
+                  const char* type)
 {
     int i;
     int gapcnt = 0;

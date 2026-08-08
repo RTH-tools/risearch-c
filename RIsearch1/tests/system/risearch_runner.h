@@ -14,7 +14,7 @@
 #include <unistd.h> // optind
 
 // risearch.cpp is compiled as C++ with main renamed, so this has C++ linkage.
-int risearch1_main(int argc, char *argv[]);
+int risearch1_main(int argc, char* argv[]);
 
 // getopt keeps its parse position in a global. Setting it to 0 makes glibc
 // re-initialise completely on the next call, which is what lets a second test
@@ -24,17 +24,17 @@ namespace risearch_test {
 
 // Runs RIsearch with `args` (argv[0] is supplied) and returns everything it
 // wrote to stdout.
-inline std::string Run(const std::vector<std::string> &args)
+inline std::string Run(const std::vector<std::string>& args)
 {
     std::vector<std::string> owned;
     owned.reserve(args.size() + 1);
     owned.push_back("RIsearch");
-    for (const auto &a : args)
+    for (const auto& a : args)
         owned.push_back(a);
 
-    std::vector<char *> argv;
+    std::vector<char*> argv;
     argv.reserve(owned.size() + 1);
-    for (auto &s : owned)
+    for (auto& s : owned)
         argv.push_back(s.data());
     argv.push_back(nullptr);
 
@@ -45,7 +45,7 @@ inline std::string Run(const std::vector<std::string> &args)
 }
 
 // Number of non-empty lines, i.e. the hit count in the -p2 output.
-inline int CountLines(const std::string &out)
+inline int CountLines(const std::string& out)
 {
     int n = 0;
     for (size_t i = 0, start = 0; i <= out.size(); ++i)

@@ -93,9 +93,9 @@
  *
  *           CloseFASTA() "always succeeds" and returns void.
  */
-FASTAFILE *OpenFASTA(const char *seqfile)
+FASTAFILE* OpenFASTA(const char* seqfile)
 {
-    FASTAFILE *ffp;
+    FASTAFILE* ffp;
 
     ffp = malloc(sizeof(FASTAFILE));
     if (strcmp(seqfile, "-")) {        /*returns 0/FALSE if they are same! */
@@ -114,11 +114,11 @@ FASTAFILE *OpenFASTA(const char *seqfile)
     return ffp;
 }
 
-int ReadFASTA(FASTAFILE *ffp, char **ret_seq, char **ret_name, unsigned long *ret_L)
+int ReadFASTA(FASTAFILE* ffp, char** ret_seq, char** ret_name, unsigned long* ret_L)
 {
-    char *s;
-    char *name;
-    char *seq;
+    char* s;
+    char* name;
+    char* seq;
     int n;
     int nalloc;
 
@@ -166,7 +166,7 @@ int ReadFASTA(FASTAFILE *ffp, char **ret_seq, char **ret_name, unsigned long *re
     return 1;
 }
 
-void CloseFASTA(FASTAFILE *ffp)
+void CloseFASTA(FASTAFILE* ffp)
 {
     fclose(ffp->fp);
     free(ffp);
@@ -191,11 +191,11 @@ void CloseFASTA(FASTAFILE *ffp)
  *  to compile:  gcc -o test -DTEST_FASTA_STUFF -Wall -g fasta.c
  *  to run:      ./test myseqs.fa
  */
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
-    FASTAFILE *ffp;
-    char *seq;
-    char *name;
+    FASTAFILE* ffp;
+    char* seq;
+    char* name;
     int L;
     /* argv[1] is the name of a FASTA file */
     ffp = OpenFASTA(argv[1]);

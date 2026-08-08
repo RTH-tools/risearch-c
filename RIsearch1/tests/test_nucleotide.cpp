@@ -44,7 +44,7 @@ TEST(NucleotideCoding, Seq2ixEncodesASequenceAndReportsGapsRemoved)
     char seq[] = "AC-GU";
     std::vector<unsigned char> out(sizeof(seq), 0xFF);
 
-    const int gaps = seq2ix(5, seq, out.data(), (char *)"test", (char *)"query");
+    const int gaps = seq2ix(5, seq, out.data(), (char*)"test", (char*)"query");
 
     EXPECT_EQ(gaps, 1);
     EXPECT_EQ(out[0], 0); // A

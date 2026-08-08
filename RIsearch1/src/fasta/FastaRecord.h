@@ -4,8 +4,8 @@
 
 class FastaRecord {
 public:
-    [[nodiscard]] const unsigned char *get_sequence() const;
-    [[nodiscard]] const unsigned char *get_name() const;
+    [[nodiscard]] const unsigned char* get_sequence() const;
+    [[nodiscard]] const unsigned char* get_name() const;
     [[nodiscard]] unsigned int get_size() const;
 
 

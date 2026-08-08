@@ -6,17 +6,17 @@ extern "C" {
 
 class FastaRAII {
 public:
-    explicit FastaRAII(const char *sequence_file);
+    explicit FastaRAII(const char* sequence_file);
 
-    FastaRAII(const FastaRAII &) = delete;
-    FastaRAII(FastaRAII &&) = delete;
-    FastaRAII &operator=(const FastaRAII &) = delete;
-    FastaRAII &operator=(FastaRAII &&) = delete;
+    FastaRAII(const FastaRAII&) = delete;
+    FastaRAII(FastaRAII&&) = delete;
+    FastaRAII& operator=(const FastaRAII&) = delete;
+    FastaRAII& operator=(FastaRAII&&) = delete;
 
-    FASTAFILE *handle() const;
+    FASTAFILE* handle() const;
 
     ~FastaRAII();
 
-    const char *m_sequence_file;
-    FASTAFILE *m_fasta_file_handle;
+    const char* m_sequence_file;
+    FASTAFILE* m_fasta_file_handle;
 };

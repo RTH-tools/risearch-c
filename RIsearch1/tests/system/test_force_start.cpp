@@ -14,12 +14,12 @@
 
 namespace {
 
-const char *kQuery = RISEARCH_TEST_DATA "/query.fa";
-const char *kTarget = RISEARCH_TEST_DATA "/target.fa";
+const char* kQuery = RISEARCH_TEST_DATA "/query.fa";
+const char* kTarget = RISEARCH_TEST_DATA "/target.fa";
 
 // -f must exceed 200 * max(query, target) or the search reports that it could
 // not force the start; the committed target is 95 nt, so 20000 is ample.
-std::vector<std::string> ForceStartArgs(const char *weights, const char *matrix)
+std::vector<std::string> ForceStartArgs(const char* weights, const char* matrix)
 {
     return {"-q", kQuery, "-t", kTarget, "-m", matrix, "-f", "20000", "-w", weights};
 }
@@ -46,7 +46,7 @@ TEST(ForceStart, WeightsChangeTheResult)
 
 TEST(ForceStart, WorksForEveryMatrix)
 {
-    for (const char *matrix : {"su95_noGU", "t04", "slh04_noGU"}) {
+    for (const char* matrix : {"su95_noGU", "t04", "slh04_noGU"}) {
         const std::string out = risearch_test::Run(ForceStartArgs("noweights", matrix));
         EXPECT_NE(out.find("***Structures and Energies***"), std::string::npos)
             << "matrix " << matrix;
@@ -56,7 +56,7 @@ TEST(ForceStart, WorksForEveryMatrix)
 TEST(ForceStart, ReportsEveryQueryAgainstTheTarget)
 {
     const std::string out = risearch_test::Run(ForceStartArgs("noweights", "su95_noGU"));
-    for (const char *q : {"aso1", "aso2", "aso3"})
+    for (const char* q : {"aso1", "aso2", "aso3"})
         EXPECT_NE(out.find(q), std::string::npos) << "missing query " << q;
 }
 

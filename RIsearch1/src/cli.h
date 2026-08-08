@@ -8,7 +8,7 @@
 #include <getopt.h>
 #include <limits.h>
 
-static void usage(const char *progname)
+static void usage(const char* progname)
 {
     fprintf(stderr, "====== RIsearch1 ver 1.2 ======\n= RNA-RNA interaction search =\n");
     fprintf(stderr, "=   Contact: wenzel@rth.dk   =\n==============================\n\n");
@@ -67,12 +67,12 @@ typedef struct config {
     int transpose_matrix_flag;
     int extension_penalty;
     int all_vs_all;
-    const char *seq1_file_name;
-    const char *seq2_file_name;
-    const char *seq1_cli;
-    const char *seq2_cli;
-    const char *mat_name;
-    const char *pos_weights;
+    const char* seq1_file_name;
+    const char* seq2_file_name;
+    const char* seq1_cli;
+    const char* seq2_cli;
+    const char* mat_name;
+    const char* pos_weights;
     int min_score;
     int doSubopt;
     double max_energy;
@@ -84,12 +84,12 @@ typedef struct config {
     int tblen;
 } config_st;
 
-static const char *DEFAULT_MAT_NAME = "t04";
-static const char *DEFAULT_POS_WEIGHTS = "CRISPR_20nt_3p_5p";
+static const char* DEFAULT_MAT_NAME = "t04";
+static const char* DEFAULT_POS_WEIGHTS = "CRISPR_20nt_3p_5p";
 
 /*TODO possibly several print styles, Vienna-like (one line, but still IA) */
 
-static void getArgs(int argc, char *argv[], config_st *config)
+static void getArgs(int argc, char* argv[], config_st* config)
 {
     config->transpose_matrix_flag = 0;
     config->extension_penalty = 0; /* extension penalty; used to compute dsm */

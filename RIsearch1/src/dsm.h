@@ -4,9 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int getMat(const char *matname, short *bA_nu, int extPen, int transpose_matrix)
+static int getMat(const char* matname, short* bA_nu, int extPen, int transpose_matrix)
 {
-    short *bA_bas;
+    short* bA_bas;
     extern short dsm_extend[6][6][6][6];
     if (!strcmp(matname, "t04")) {
         extern short dsm_t04[6][6][6][6];
@@ -31,7 +31,7 @@ static int getMat(const char *matname, short *bA_nu, int extPen, int transpose_m
                 matname);
         exit(1);
     }
-    short *bA_ext = &dsm_extend[0][0][0][0];
+    short* bA_ext = &dsm_extend[0][0][0][0];
 
     if (transpose_matrix) {
         for (auto i = 0u; i < 6u; ++i) {

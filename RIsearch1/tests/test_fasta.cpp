@@ -10,7 +10,7 @@
 namespace {
 
 // tests/system/data/query.fa: three 20-mers named aso1..aso3.
-const char *kQuery = RISEARCH_TEST_DATA "/query.fa";
+const char* kQuery = RISEARCH_TEST_DATA "/query.fa";
 
 TEST(Fasta, OpenReturnsNullForAMissingFile)
 {
@@ -19,11 +19,11 @@ TEST(Fasta, OpenReturnsNullForAMissingFile)
 
 TEST(Fasta, ReadsNameAndSequenceOfTheFirstRecord)
 {
-    FASTAFILE *ffp = OpenFASTA(kQuery);
+    FASTAFILE* ffp = OpenFASTA(kQuery);
     ASSERT_NE(ffp, nullptr);
 
-    char *seq = nullptr;
-    char *name = nullptr;
+    char* seq = nullptr;
+    char* name = nullptr;
     unsigned long len = 0;
     ASSERT_TRUE(ReadFASTA(ffp, &seq, &name, &len));
 
@@ -38,11 +38,11 @@ TEST(Fasta, ReadsNameAndSequenceOfTheFirstRecord)
 
 TEST(Fasta, ReadsEveryRecordThenStops)
 {
-    FASTAFILE *ffp = OpenFASTA(kQuery);
+    FASTAFILE* ffp = OpenFASTA(kQuery);
     ASSERT_NE(ffp, nullptr);
 
-    char *seq = nullptr;
-    char *name = nullptr;
+    char* seq = nullptr;
+    char* name = nullptr;
     unsigned long len = 0;
     int count = 0;
     while (ReadFASTA(ffp, &seq, &name, &len)) {
@@ -61,8 +61,8 @@ TEST(FastaRAIITest, HandleIsUsableForAReadableFile)
     FastaRAII fasta(kQuery);
     ASSERT_NE(fasta.handle(), nullptr);
 
-    char *seq = nullptr;
-    char *name = nullptr;
+    char* seq = nullptr;
+    char* name = nullptr;
     unsigned long len = 0;
     ASSERT_TRUE(ReadFASTA(fasta.handle(), &seq, &name, &len));
     EXPECT_STREQ(name, "aso1");

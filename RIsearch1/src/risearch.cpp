@@ -41,7 +41,7 @@
 /* values filled in by getArgs from the command line */
 static config_st config;
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     unsigned long len_seq1, len_seq2;
     char *one, *two;
