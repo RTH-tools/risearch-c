@@ -1,11 +1,17 @@
-# RIsearch
-RIsearch: a tool for large-scale RNA–RNA, RNA-DNA, and DNA-DNA interaction prediction.
+# RIsearch1 (tauso fork)
 
-## Python package (RIsearch1, tauso fork)
+RIsearch1: RNA–RNA, RNA-DNA and DNA-DNA interaction prediction using a simplified
+nearest-neighbor energy model.
 
-A precompiled RIsearch1 binary from this fork is published to PyPI under the
-name `risearch-tauso`, to make RIsearch a normal Python dependency for tauso
-and any other downstream tool that wants the fork's flavor of RIsearch1:
+This fork carries **RIsearch1 only**. RIsearch2 and the siRNA off-target pipeline
+live upstream at [RTH-tools/risearch](https://github.com/RTH-tools/risearch); they
+were removed here because nothing downstream of this fork uses them. Their history
+is still in this repository if you need it.
+
+## Python package
+
+A precompiled binary from this fork is published to PyPI as `risearch-tauso`, so
+RIsearch is a normal Python dependency for tauso and any other downstream tool:
 
 ```bash
 pip install risearch-tauso
@@ -16,113 +22,73 @@ import risearch_tauso, subprocess
 subprocess.run([risearch_tauso.executable_path(), "-q", "query.fa", "-t", "target.fa"])
 ```
 
-Or as a CLI shim (forwards all args straight to the bundled binary):
+Or as a CLI shim, which forwards all arguments straight to the bundled binary:
 
 ```bash
 risearch-tauso -q query.fa -t target.fa
 python -m risearch_tauso -q query.fa -t target.fa
 ```
 
-The PyPI package is **not** the canonical upstream RIsearch — it is the
-tauso-team fork. Use the upstream RIsearch from RTH-tools if you want the
-unmodified tool. The Python wrapper currently ships **RIsearch1** only;
-RIsearch2 still needs to be built from source per the instructions below.
+The PyPI package is **not** canonical upstream RIsearch — it is the tauso-team
+fork. Use upstream if you want the unmodified tool.
 
-## Installation
+## Building from source
 
-### RIsearch1
-First, make sure that you have the following programs installed:
+Requires a C++17 compiler and CMake 3.20 or newer.
 
-* gcc
-* make
+```bash
+cmake -S RIsearch1 -B RIsearch1/build -DCMAKE_BUILD_TYPE=Release
+cmake --build RIsearch1/build -j
+```
 
-You can compile RIsearch1 by running the following from within the RIsearch1 folder.
+That produces `RIsearch1/bin/RIsearch` and `RIsearch1/bin/RIsearch.dbg`, the
+second with the debug tracing compiled in. The wheel build runs the same CMake via
+`setup.py`.
 
-	make RISEARCH
+## Tests
 
-### RIsearch2
+```bash
+./RIsearch1/build/tests/risearch1_tests
+```
 
-First, make sure that you have the following programs installed:
+Unit tests for the nucleotide coding, the min/max helpers, the alignment symbols,
+the energy matrix and the FASTA reader; end-to-end tests that run `main()` in
+process with a constructed argv and assert on its output. Pass
+`-DRISEARCH_BUILD_TESTS=OFF` to skip googletest entirely, as the wheel build does.
 
-* gcc
-* make
-* CMake
+## Running
 
-Now, you should attempt to recompile the binary using the following command from
-within the RIsearch2 folder:
+```bash
+RIsearch -q query.fa -t target.fa
+```
 
-	./rebuild.sh
-
-If that does not work, and you have the gcc and CMake programs installed,
-please report back to the author.
-
-## Executing RIsearch
-For more convenient use of RIsearch, add the installation folder or RIsearch1 and 
-RIsearch2 to your PATH or copy the binary to a location that is in $PATH.
-
-Here we provide examples on how to run RIsearch2 and RIsearch1 with default parameters.
-
-See the manuals for RIsearch2 and RIsearch1 for the full list of options and examples.
-
-### RIsearch2
-First, generate the index structure for the target sequence(s) in the file target.fa
-and store them in the file target.suf. 
-
-	risearch2.x -c target.fa -o target.suf
-
-To run RIsearch2 in default settings use the following command:
-
-	risearch2.x -q query.fa -i target.suf
-
-Note: the files query.fa and target.fa may contain several sequences, 
-RIsearch will scan all vs. all
-
-### RIsearch1
-To run RIsearch1 in default settings use the following command:
-
-	RIsearch -q query.fa -t target.fa
-
-Alternatively, single sequences can be given directly on commandline with
--Q acgu -T acgu
-
-Note: the files query.fa and target.fa may contain several sequences, 
-RIsearch will scan all vs. all
-
-## RIsearch manuals
-Please read the full manuals for RIsearch1 and RIsearch2, included in the installation folders.
+Both files may hold several sequences; RIsearch scans all against all. Single
+sequences can be given directly with `-Q acgu -T acgu`. See `RIsearch1/Manual.pdf`
+for the full option list.
 
 ## Copyright
 
-Copyright 2021 by the contributors (see RIsearch2/AUTHORS and RIsearch1/README files)
+Copyright 2021 by the contributors; see `RIsearch1/README`.
 
-RIsearch1 and Risearch2 are released under the GNU General Public License
-version 3. Note that libdivsufsort is packaged along with RIsearch.
-Libdivsufsort comes with its own authors and copyright under
-RIsearch2/libdivsufsort-2.0.1/{AUTHORS,COPYING}
+RIsearch1 is released under the GNU General Public License version 3. This is free
+software: you can redistribute it and/or modify it under the terms of that licence,
+either version 3 or (at your option) any later version. You should have received a
+copy of the GNU General Public License along with RIsearch — see the file COPYING.
+If not, see <http://www.gnu.org/licenses/>.
 
-GNU GENERAL PUBLIC LICENSE
+This software is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
+## Citation
 
-This is a free software: you can redistribute it and/or modify it under the
-terms of the GNU General Public License, either version 3 of the License, or
-(at your option) any later version. You should have received a copy of the GNU General Public License
-along with RIsearch, see file COPYING. If not, see <http://www.gnu.org/licenses/>.
+If you use RIsearch in a publication, please cite:
 
-This software is distributed in the hope that it will be useful, but WITHOUT
-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-## Citations
-
-If you use RIsearch in your publication please cite:
-
-**RIsearch2: suffix array-based large-scale prediction of RNA-RNA interactions and siRNA off-targets**
-Alkan F, Wenzel A, Palasca O, Kerpedjiev P, Rudebeck AF, Stadler PF, Hofacker IL, Gorodkin J *Nucleic Acids Res*. 2017 May 5;45(8):e60
-
-**RIsearch: fast RNA-RNA interaction search using a simplified nearest-neighbor energy model**
-Wenzel A, Akbasli E, Gorodkin J. *Bioinformatics*. 2012 Nov 1;28(21):2738-46. Epub 2012 Aug 24
+**RIsearch: fast RNA-RNA interaction search using a simplified nearest-neighbor
+energy model.** Wenzel A, Akbasli E, Gorodkin J. *Bioinformatics*. 2012 Nov
+1;28(21):2738-46.
 
 ## Contact
 
-In case of problems or bug reports, please contact: <software+crispron@rth.dk>
-
+For problems with this fork, open an issue here. For upstream RIsearch:
+<software+crispron@rth.dk>

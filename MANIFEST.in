@@ -1,8 +1,6 @@
 graft RIsearch1
 include LICENSE
 include README.md
-prune RIsearch2
-prune RIsearch2-siRNA-off-targets
 # Strip pre-built binaries and any build artifacts so the sdist is source-only;
 # the wheel build will recompile from RIsearch1/src.
 exclude RIsearch1/RISearch
