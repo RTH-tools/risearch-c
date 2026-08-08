@@ -1,0 +1,42 @@
+# Brace placement: on its own line after a function, on the same line after a
+# control statement. Everything else follows LLVM with a four-space indent.
+Language: Cpp
+BasedOnStyle: LLVM
+
+IndentWidth: 4
+ColumnLimit: 100
+PointerAlignment: Right
+ReferenceAlignment: Right
+AccessModifierOffset: -4
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+    AfterFunction: true
+    AfterControlStatement: Never
+    AfterClass: false
+    AfterStruct: false
+    AfterEnum: false
+    AfterUnion: false
+    AfterNamespace: false
+    AfterCaseLabel: false
+    BeforeElse: false
+    BeforeCatch: false
+    BeforeWhile: false
+    IndentBraces: false
+    SplitEmptyFunction: true
+    SplitEmptyRecord: true
+
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+SpaceAfterTemplateKeyword: false
+AlwaysBreakTemplateDeclarations: Yes
+
+# The include order in this project is deliberate in places -- nucleotide.h before
+# headers that use its NEGINF, for one -- so leave blocks as written.
+SortIncludes: Never
+IncludeBlocks: Preserve
+
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 2

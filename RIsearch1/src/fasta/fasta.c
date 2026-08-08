@@ -93,83 +93,84 @@
  *
  *           CloseFASTA() "always succeeds" and returns void.
  */
-FASTAFILE *
-OpenFASTA(const char *seqfile)
+FASTAFILE *OpenFASTA(const char *seqfile)
 {
-  FASTAFILE *ffp;
+    FASTAFILE *ffp;
 
-  ffp = malloc(sizeof(FASTAFILE));
-  if (strcmp(seqfile, "-")) { /*returns 0/FALSE if they are same! */
-    ffp->fp = fopen(seqfile, "r");              /* Assume seqfile exists & readable!   */
-  } else {
-    ffp->fp = stdin;
-  }
-  if (ffp->fp == NULL) { free(ffp); return NULL; }
-  if ((fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp)) == NULL)
-    { free(ffp); return NULL; }
-  return ffp;
-}
-
-int
-ReadFASTA(FASTAFILE *ffp, char **ret_seq, char **ret_name, unsigned long *ret_L)
-{
-  char *s;
-  char *name;
-  char *seq;
-  int   n;
-  int   nalloc;
-
-  /* Peek at the lookahead buffer; see if it appears to be a valid FASTA descline.
-   */
-  if (ffp->buffer[0] != '>') return 0;
-
-  /* Parse out the name: the first non-whitespace token after the >
-   */
-  s  = strtok(ffp->buffer+1, " \t\r\n");
-  name = malloc(sizeof(char) * (strlen(s)+1));
-  strcpy(name, s);
-
-  /* Everything else 'til the next descline is the sequence.
-   * Note the idiom for dynamic reallocation of seq as we
-   * read more characters, so we don't have to assume a maximum
-   * sequence length.
-   */
-  seq = malloc(sizeof(char) * 128);     /* allocate seq in blocks of 128 residues */
-  nalloc = 128;
-  n = 0;
-  while (fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp))
-    {
-      if (ffp->buffer[0] == '>') break;	/* a-ha, we've reached the next descline */
-
-      for (s = ffp->buffer; *s != '\0'; s++)
-	{
-	  if (! isalpha(*s)) continue;  /* accept any alphabetic character */
-
-	  seq[n] = *s;                  /* store the character, bump length n */
-	  n++;
-	  if (nalloc == n)	        /* are we out of room in seq? if so, expand */
-	    {			        /* (remember, need space for the final '\0')*/
-	      nalloc += 128;
-	      seq = realloc(seq, sizeof(char) * nalloc);
-	    }
-	}
+    ffp = malloc(sizeof(FASTAFILE));
+    if (strcmp(seqfile, "-")) {        /*returns 0/FALSE if they are same! */
+        ffp->fp = fopen(seqfile, "r"); /* Assume seqfile exists & readable!   */
+    } else {
+        ffp->fp = stdin;
     }
-  seq[n] = '\0';
-
-  *ret_name = name;
-  *ret_seq  = seq;
-  *ret_L    = n;
-  return 1;
+    if (ffp->fp == NULL) {
+        free(ffp);
+        return NULL;
+    }
+    if ((fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp)) == NULL) {
+        free(ffp);
+        return NULL;
+    }
+    return ffp;
 }
 
-void
-CloseFASTA(FASTAFILE *ffp)
+int ReadFASTA(FASTAFILE *ffp, char **ret_seq, char **ret_name, unsigned long *ret_L)
 {
-  fclose(ffp->fp);
-  free(ffp);
+    char *s;
+    char *name;
+    char *seq;
+    int n;
+    int nalloc;
+
+    /* Peek at the lookahead buffer; see if it appears to be a valid FASTA descline.
+     */
+    if (ffp->buffer[0] != '>')
+        return 0;
+
+    /* Parse out the name: the first non-whitespace token after the >
+     */
+    s = strtok(ffp->buffer + 1, " \t\r\n");
+    name = malloc(sizeof(char) * (strlen(s) + 1));
+    strcpy(name, s);
+
+    /* Everything else 'til the next descline is the sequence.
+     * Note the idiom for dynamic reallocation of seq as we
+     * read more characters, so we don't have to assume a maximum
+     * sequence length.
+     */
+    seq = malloc(sizeof(char) * 128); /* allocate seq in blocks of 128 residues */
+    nalloc = 128;
+    n = 0;
+    while (fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp)) {
+        if (ffp->buffer[0] == '>')
+            break; /* a-ha, we've reached the next descline */
+
+        for (s = ffp->buffer; *s != '\0'; s++) {
+            if (!isalpha(*s))
+                continue; /* accept any alphabetic character */
+
+            seq[n] = *s; /* store the character, bump length n */
+            n++;
+            if (nalloc == n) /* are we out of room in seq? if so, expand */
+            {                /* (remember, need space for the final '\0')*/
+                nalloc += 128;
+                seq = realloc(seq, sizeof(char) * nalloc);
+            }
+        }
+    }
+    seq[n] = '\0';
+
+    *ret_name = name;
+    *ret_seq = seq;
+    *ret_L = n;
+    return 1;
 }
 
-
+void CloseFASTA(FASTAFILE *ffp)
+{
+    fclose(ffp->fp);
+    free(ffp);
+}
 
 
 /* what follows is a useful idiom: when you're writing a .c file that's supposed
@@ -190,24 +191,22 @@ CloseFASTA(FASTAFILE *ffp)
  *  to compile:  gcc -o test -DTEST_FASTA_STUFF -Wall -g fasta.c
  *  to run:      ./test myseqs.fa
  */
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
-  FASTAFILE *ffp;
-  char *seq;
-  char *name;
-  int   L;
-				/* argv[1] is the name of a FASTA file */
-  ffp = OpenFASTA(argv[1]);
-  while (ReadFASTA(ffp, &seq, &name, &L))
-    {
-      printf(">%s\n", name);
-      printf("%s\n",  seq);
+    FASTAFILE *ffp;
+    char *seq;
+    char *name;
+    int L;
+    /* argv[1] is the name of a FASTA file */
+    ffp = OpenFASTA(argv[1]);
+    while (ReadFASTA(ffp, &seq, &name, &L)) {
+        printf(">%s\n", name);
+        printf("%s\n", seq);
 
-      free(seq);
-      free(name);
+        free(seq);
+        free(name);
     }
-  CloseFASTA(ffp);
-  exit(0);
+    CloseFASTA(ffp);
+    exit(0);
 }
 #endif /*TEST_FASTA_STUFF*/

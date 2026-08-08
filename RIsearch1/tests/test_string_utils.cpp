@@ -11,4 +11,3 @@ TEST(StringUtils, TestReverseSanity)
     reverse_inplace(str, 2);
     EXPECT_STREQ(str, "abcde");
 }
-

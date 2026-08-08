@@ -41,7 +41,8 @@
 /* values filled in by getArgs from the command line */
 static config_st config;
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     unsigned long len_seq1, len_seq2;
     char *one, *two;
 
@@ -52,7 +53,8 @@ int main(int argc, char *argv[]) {
 
     getArgs(argc, argv, &config);
 
-    getMat(config.mat_name, &dsm[0][0][0][0], config.extension_penalty, config.transpose_matrix_flag);
+    getMat(config.mat_name, &dsm[0][0][0][0], config.extension_penalty,
+           config.transpose_matrix_flag);
 
     if (config.seq2_file_name) {
         /* target given as file - or STDIN */
@@ -72,7 +74,7 @@ int main(int argc, char *argv[]) {
                 len_seq2 -= check; /*removed gap characters */
             if (check < 0)
                 continue; /*non-alpha char in input */
-            free(two); /*free'ing space for full seq, as we have it as ix version */
+            free(two);    /*free'ing space for full seq, as we have it as ix version */
 
             if (config.seq1_file_name) {
                 /* query given as file */
@@ -91,37 +93,37 @@ int main(int argc, char *argv[]) {
                         len_seq1 -= check; /*removed gap characters */
                     if (check < 0)
                         continue; /*non-alpha char in input */
-                    free(one); /*free'ing space for full seq, as we have it as ix version */
+                    free(one);    /*free'ing space for full seq, as we have it as ix version */
                     if (config.printShort < 2 && (config.all_vs_all || count_t == count_q))
-                        printf("\n\nquery %d: %s (%lu nts) vs. target %d: %s (%lu nts)\n\n", count_q, nameQ, len_seq1,
-                               count_t, nameT, len_seq2);
+                        printf("\n\nquery %d: %s (%lu nts) vs. target %d: %s (%lu nts)\n\n",
+                               count_q, nameQ, len_seq1, count_t, nameT, len_seq2);
                     if (config.weighted_positions || (config.force_start_val >= 0)) {
                         if (config.force_start_val < 0) {
                             fprintf(stderr, "Parameter -f must be set when using weights (-w).\n");
                             exit(1);
                         }
                         if (!config.weighted_positions) {
-                            fprintf(
-                                stderr,
-                                "Parameter -w must be set when using force start (-f). Use array of weights \"noweigths\" to avoid this error.\n");
+                            fprintf(stderr,
+                                    "Parameter -w must be set when using force start (-f). Use "
+                                    "array of weights \"noweigths\" to avoid this error.\n");
                             exit(1);
                         }
-                        if (config.extension_penalty || config.tblen != 40 || config.doSubopt || config.filter_e ||
-                            config.printShort || config.vicinity) {
-                            fprintf(
-                                stderr,
-                                "Options -d -s -n -l -e -p are not available in combination with options -f -w \n");
+                        if (config.extension_penalty || config.tblen != 40 || config.doSubopt ||
+                            config.filter_e || config.printShort || config.vicinity) {
+                            fprintf(stderr, "Options -d -s -n -l -e -p are not available in "
+                                            "combination with options -f -w \n");
                             exit(1);
                         }
                         if (config.all_vs_all || count_t == count_q) {
-                            RIs_force_start_end_init(config.force_start_val, config.pos_weights, qseqIx.get(),
-                                                     tseqIx.get(),
-                                                     len_seq1, len_seq2, dsm, config.mat_name);
+                            RIs_force_start_end_init(config.force_start_val, config.pos_weights,
+                                                     qseqIx.get(), tseqIx.get(), len_seq1, len_seq2,
+                                                     dsm, config.mat_name);
                         }
                     } else {
                         if (config.all_vs_all || count_t == count_q) {
-                            RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm, config.extension_penalty,
-                                         config.min_score, nameQ, nameT, config.mat_name, &config);
+                            RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
+                                         config.extension_penalty, config.min_score, nameQ, nameT,
+                                         config.mat_name, &config);
                         }
                     }
                     free(nameQ);
@@ -130,37 +132,39 @@ int main(int argc, char *argv[]) {
                 /* query given as command line parameter */
                 len_seq1 = strlen(config.seq1_cli);
                 MallocRAII<unsigned char> qseqIx(len_seq1);
-                check = seq2ix(len_seq1, config.seq1_cli, qseqIx.get(), "from command line", "query");
+                check =
+                    seq2ix(len_seq1, config.seq1_cli, qseqIx.get(), "from command line", "query");
                 if (check > 0)
                     len_seq1 -= check; /*removed gap characters */
                 if (check < 0)
-                    return -1; /*non-alpha char in input -- break would loop through all query seqs, no use */
+                    return -1; /*non-alpha char in input -- break would loop through all query seqs,
+                                  no use */
                 if (config.printShort < 2)
-                    printf("\n\nquery from_cli (%lu nts) vs. target %s (%lu nts)\n\n", len_seq1, nameT, len_seq2);
+                    printf("\n\nquery from_cli (%lu nts) vs. target %s (%lu nts)\n\n", len_seq1,
+                           nameT, len_seq2);
                 if (config.weighted_positions || (config.force_start_val >= 0)) {
                     if (config.force_start_val < 0) {
                         fprintf(stderr, "Parameter -f must be set when using weights (-w).\n");
                         exit(1);
                     }
                     if (!config.weighted_positions) {
-                        fprintf(
-                            stderr,
-                            "Parameter -w must be set when using force start (-f). Use array of weights \"noweigths\" to avoid this error.\n");
+                        fprintf(stderr, "Parameter -w must be set when using force start (-f). Use "
+                                        "array of weights \"noweigths\" to avoid this error.\n");
                         exit(1);
                     }
-                    if (config.extension_penalty || config.tblen != 40 || config.doSubopt || config.filter_e || config.
-                        printShort || config.vicinity) {
-                        fprintf(
-                            stderr, "Options -d -s -n -l -e -p are not available in combination with options -f -w \n");
+                    if (config.extension_penalty || config.tblen != 40 || config.doSubopt ||
+                        config.filter_e || config.printShort || config.vicinity) {
+                        fprintf(stderr, "Options -d -s -n -l -e -p are not available in "
+                                        "combination with options -f -w \n");
                         exit(1);
                     }
-                    RIs_force_start_end_init(config.force_start_val, config.pos_weights, qseqIx.get(), tseqIx.get(),
-                                             len_seq1,
-                                             len_seq2, dsm, config.mat_name);
+                    RIs_force_start_end_init(config.force_start_val, config.pos_weights,
+                                             qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
+                                             config.mat_name);
                 } else {
-                    RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm, config.extension_penalty,
-                                 config.min_score,
-                                 "from_cli", nameT, config.mat_name, &config);
+                    RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
+                                 config.extension_penalty, config.min_score, "from_cli", nameT,
+                                 config.mat_name, &config);
                 }
             } else {
                 fprintf(stderr, "No query seq given!");
@@ -198,31 +202,31 @@ int main(int argc, char *argv[]) {
                 free(one);
 
                 if (config.printShort < 2)
-                    printf("\n\nquery %s (%lu nts) vs. target from_cli (%lu nts)\n\n", nameQ, len_seq1, len_seq2);
+                    printf("\n\nquery %s (%lu nts) vs. target from_cli (%lu nts)\n\n", nameQ,
+                           len_seq1, len_seq2);
                 if (config.weighted_positions || (config.force_start_val >= 0)) {
                     if (config.force_start_val < 0) {
                         fprintf(stderr, "Parameter -f must be set when using weights (-w).\n");
                         exit(1);
                     }
                     if (!config.weighted_positions) {
-                        fprintf(
-                            stderr,
-                            "Parameter -w must be set when using force start (-f). Use array of weights \"noweigths\" to avoid this error.\n");
+                        fprintf(stderr, "Parameter -w must be set when using force start (-f). Use "
+                                        "array of weights \"noweigths\" to avoid this error.\n");
                         exit(1);
                     }
-                    if (config.extension_penalty || config.tblen != 40 || config.doSubopt || config.filter_e || config.
-                        printShort || config.vicinity) {
-                        fprintf(
-                            stderr, "Options -d -s -n -l -e -p are not available in combination with options -f -w \n");
+                    if (config.extension_penalty || config.tblen != 40 || config.doSubopt ||
+                        config.filter_e || config.printShort || config.vicinity) {
+                        fprintf(stderr, "Options -d -s -n -l -e -p are not available in "
+                                        "combination with options -f -w \n");
                         exit(1);
                     }
-                    RIs_force_start_end_init(config.force_start_val, config.pos_weights, qseqIx.get(), tseqIx.get(),
-                                             len_seq1,
-                                             len_seq2, dsm, config.mat_name);
+                    RIs_force_start_end_init(config.force_start_val, config.pos_weights,
+                                             qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
+                                             config.mat_name);
                 } else {
-                    RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm, config.extension_penalty,
-                                 config.min_score,
-                                 nameQ, "from_cli", config.mat_name, &config);
+                    RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
+                                 config.extension_penalty, config.min_score, nameQ, "from_cli",
+                                 config.mat_name, &config);
                 }
                 free(nameQ);
             }
@@ -237,30 +241,30 @@ int main(int argc, char *argv[]) {
             if (check < 0)
                 return -1; /* non-alpha char in input -- break would loop through queries, no use */
             if (config.printShort < 2)
-                printf("\n\nquery from_cli (%lu nts) vs. target from_cli (%lu nts)\n\n", len_seq1, len_seq2);
+                printf("\n\nquery from_cli (%lu nts) vs. target from_cli (%lu nts)\n\n", len_seq1,
+                       len_seq2);
             if (config.weighted_positions || (config.force_start_val >= 0)) {
                 if (config.force_start_val < 0) {
                     fprintf(stderr, "Parameter -f must be set when using weights (-w).\n");
                     exit(1);
                 }
                 if (!config.weighted_positions) {
-                    fprintf(
-                        stderr,
-                        "Parameter -w must be set when using force start (-f). Use array of weights \"noweigths\" to avoid this error.\n");
+                    fprintf(stderr, "Parameter -w must be set when using force start (-f). Use "
+                                    "array of weights \"noweigths\" to avoid this error.\n");
                     exit(1);
                 }
-                if (config.extension_penalty || config.tblen != 40 || config.doSubopt || config.filter_e || config.
-                    printShort || config.vicinity) {
-                    fprintf(stderr, "Options -d -s -n -l -e -p are not available in combination with options -f -w \n");
+                if (config.extension_penalty || config.tblen != 40 || config.doSubopt ||
+                    config.filter_e || config.printShort || config.vicinity) {
+                    fprintf(stderr, "Options -d -s -n -l -e -p are not available in combination "
+                                    "with options -f -w \n");
                     exit(1);
                 }
-                RIs_force_start_end_init(config.force_start_val, config.pos_weights, qseqIx.get(), tseqIx.get(),
-                                         len_seq1, len_seq2,
-                                         dsm, config.mat_name);
+                RIs_force_start_end_init(config.force_start_val, config.pos_weights, qseqIx.get(),
+                                         tseqIx.get(), len_seq1, len_seq2, dsm, config.mat_name);
             } else {
-                RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm, config.extension_penalty,
-                             config.min_score,
-                             "from_cli", "from_cli", config.mat_name, &config);
+                RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
+                             config.extension_penalty, config.min_score, "from_cli", "from_cli",
+                             config.mat_name, &config);
             }
         } else {
             fprintf(stderr, "No query seq given!");

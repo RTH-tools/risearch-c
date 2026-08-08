@@ -5,12 +5,11 @@
 
 #include <stdio.h>
 
-#define NEGINF INT_MIN/2
+#define NEGINF INT_MIN / 2
 
 static unsigned char nt2index(char nt)
 {
-    switch (nt)
-    {
+    switch (nt) {
     case 'A':
     case 'a':
         return 0;
@@ -38,8 +37,7 @@ static unsigned char nt2index(char nt)
 
 static char index2nt(unsigned char ix)
 {
-    switch (ix)
-    {
+    switch (ix) {
     case 0:
         return 'A';
     case 1:
@@ -59,14 +57,13 @@ static char index2nt(unsigned char ix)
 }
 
 
-static int seq2ix (int len, const char *seq, unsigned char *retIx, const char *name, const char *type)
+static int seq2ix(int len, const char *seq, unsigned char *retIx, const char *name,
+                  const char *type)
 {
     int i;
     int gapcnt = 0;
-    for (i = 0; i < len; i++)
-    {
-        switch (seq[i])
-        {
+    for (i = 0; i < len; i++) {
+        switch (seq[i]) {
         case 'A':
         case 'a':
             *(retIx + i - gapcnt) = 0;
@@ -90,23 +87,20 @@ static int seq2ix (int len, const char *seq, unsigned char *retIx, const char *n
             *(retIx + i - gapcnt) = 4;
             break;
         case '-':
-        case '.':		/*discard gaps from input  --  also add "case ' ' :"??? */
+        case '.': /*discard gaps from input  --  also add "case ' ' :"??? */
             gapcnt++;
             break;
         default:
-            if (isalpha (seq[i]))
-            {
-                fprintf (stderr,
-                     "Nonstandard nucleotide code '%c' in %s sequence '%s'. Replaced with 'N'\n",
-                     seq[i], type, name);
+            if (isalpha(seq[i])) {
+                fprintf(stderr,
+                        "Nonstandard nucleotide code '%c' in %s sequence '%s'. Replaced with 'N'\n",
+                        seq[i], type, name);
                 *(retIx + i - gapcnt) = 4;
                 break;
-            }
-            else
-            {			/*skip sequence!? */
-                fprintf (stderr,
-                     "Unexpected character '%c' in %s sequence '%s'. Skipping sequence.\n",
-                     seq[i], type, name);
+            } else { /*skip sequence!? */
+                fprintf(stderr,
+                        "Unexpected character '%c' in %s sequence '%s'. Skipping sequence.\n",
+                        seq[i], type, name);
                 return -1;
             }
         }
