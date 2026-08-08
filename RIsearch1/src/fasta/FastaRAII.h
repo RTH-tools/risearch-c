@@ -1,8 +1,6 @@
 #pragma once
 
-extern "C" {
 #include "fasta.h"
-}
 
 class FastaRAII {
 public:

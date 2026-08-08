@@ -18,6 +18,16 @@
 #define GAP 5 /* position of '-' in alphabet, not as define if read from matrix... */
 
 
+
+static void fill_char_array(char* buf, std::uint32_t length)
+{
+    for (auto i = 0u; i < length; i++) {
+        buf[i] = 'X';
+    }
+    buf[length] = '\0';
+}
+
+
 static float find_max_value_f(float** M, float** Ix, float** Iy, int* k, int* i, int j, int n,
                               short dsm[6][6][6][6], unsigned char* qseq, unsigned char* tseq)
 {
@@ -50,7 +60,7 @@ RIs_force_start_end_weighted(int force_start_val,
                              int n,                 /* target seq length */
                              float* weights,        /*array of weights */
                              short dsm[6][6][6][6], /* scoring matrix */
-                             IA* hit,               /* pointer to struct, fill results */
+                             [[maybe_unused]] IA*,               /* pointer to struct, fill results */
                              const char* matname)
 {
     const auto reference = reference_from_matrix(matname);
@@ -228,11 +238,9 @@ RIs_force_start_end_weighted(int force_start_val,
                       printf("%d\n",n); */
 
         /*used to store query and target alignment symbols in backtracking */
-        MallocRAII<char> query_alignment(m + 1); /* no need to allocate +1 for \0 since the matrix
-                                                    already contain 1 position more for - */
+        MallocRAII<char> query_alignment(m + 1);
         fill_char_array(query_alignment.get(), m);
-        MallocRAII<char> target_alignment(n + 1); /* no need to allocate +1 for \0 since the matrix
-                                                     already contain 1 position more for - */
+        MallocRAII<char> target_alignment(n + 1);
         fill_char_array(target_alignment.get(), n);
 
         /*printf("col : %d\n",colj); */
@@ -389,8 +397,8 @@ static void
 RIs_force_start_end_init(int force_start_val, const char* pos_weights,
                          unsigned char* qseqIx, /* query sequence - numeric representation */
                          unsigned char* tseqIx, /* target sequence  */
-                         int len_seq1,          /* query seq length */
-                         int len_seq2,          /* target seq length */
+                         std::uint32_t len_seq1,          /* query seq length */
+                         std::uint32_t len_seq2,          /* target seq length */
                          short dsm[6][6][6][6], /* scoring matrix */
                          const char* matname    /* name of the scoring matrix */
 )

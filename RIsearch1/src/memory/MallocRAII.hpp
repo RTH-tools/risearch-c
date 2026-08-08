@@ -52,6 +52,19 @@ public:
         return m_buffer;
     }
 
+    void reset()
+    {
+        free(m_buffer);
+        m_buffer = nullptr;
+    }
+
+    void reset(T* buffer)
+    {
+        free(m_buffer);
+        m_buffer = buffer;
+    }
+
+
 private:
     T* m_buffer;
 };

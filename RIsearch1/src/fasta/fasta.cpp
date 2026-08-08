@@ -4,13 +4,6 @@
  * CVS $Id$
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <ctype.h>
-
-#include "fasta.h"
-
 
 /* Function: OpenFASTA(), ReadFASTA(), CloseFASTA().
  * Date:     SRE, Sun Sep  8 06:39:26 2002 [AA2721, transatlantic]
@@ -93,11 +86,19 @@
  *
  *           CloseFASTA() "always succeeds" and returns void.
  */
+
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+#include <cctype>
+
+#include "fasta.h"
+
+
 FASTAFILE* OpenFASTA(const char* seqfile)
 {
-    FASTAFILE* ffp;
+    FASTAFILE* ffp = reinterpret_cast<FASTAFILE*>(malloc(sizeof(FASTAFILE)));
 
-    ffp = malloc(sizeof(FASTAFILE));
     if (strcmp(seqfile, "-")) {        /*returns 0/FALSE if they are same! */
         ffp->fp = fopen(seqfile, "r"); /* Assume seqfile exists & readable!   */
     } else {
@@ -114,7 +115,7 @@ FASTAFILE* OpenFASTA(const char* seqfile)
     return ffp;
 }
 
-int ReadFASTA(FASTAFILE* ffp, char** ret_seq, char** ret_name, unsigned long* ret_L)
+int ReadFASTA(FASTAFILE* ffp, char** ret_seq, char** ret_name, std::uint32_t* ret_L)
 {
     char* s;
     char* name;
@@ -130,7 +131,7 @@ int ReadFASTA(FASTAFILE* ffp, char** ret_seq, char** ret_name, unsigned long* re
     /* Parse out the name: the first non-whitespace token after the >
      */
     s = strtok(ffp->buffer + 1, " \t\r\n");
-    name = malloc(sizeof(char) * (strlen(s) + 1));
+    name = reinterpret_cast<char*>(malloc(sizeof(char) * (strlen(s) + 1)));
     strcpy(name, s);
 
     /* Everything else 'til the next descline is the sequence.
@@ -138,7 +139,7 @@ int ReadFASTA(FASTAFILE* ffp, char** ret_seq, char** ret_name, unsigned long* re
      * read more characters, so we don't have to assume a maximum
      * sequence length.
      */
-    seq = malloc(sizeof(char) * 128); /* allocate seq in blocks of 128 residues */
+    seq = reinterpret_cast<char*>(malloc(sizeof(char) * 128)); /* allocate seq in blocks of 128 residues */
     nalloc = 128;
     n = 0;
     while (fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp)) {
@@ -154,7 +155,7 @@ int ReadFASTA(FASTAFILE* ffp, char** ret_seq, char** ret_name, unsigned long* re
             if (nalloc == n) /* are we out of room in seq? if so, expand */
             {                /* (remember, need space for the final '\0')*/
                 nalloc += 128;
-                seq = realloc(seq, sizeof(char) * nalloc);
+                seq = reinterpret_cast<char*>(realloc(seq, sizeof(char) * nalloc));
             }
         }
     }
@@ -185,28 +186,3 @@ void CloseFASTA(FASTAFILE* ffp)
  * to simplify your APIs, so that small test programs can demonstrate
  * the full power of the API.
  */
-
-#ifdef TEST_FASTA_STUFF
-/* Test the fasta parsing API.
- *  to compile:  gcc -o test -DTEST_FASTA_STUFF -Wall -g fasta.c
- *  to run:      ./test myseqs.fa
- */
-int main(int argc, char** argv)
-{
-    FASTAFILE* ffp;
-    char* seq;
-    char* name;
-    int L;
-    /* argv[1] is the name of a FASTA file */
-    ffp = OpenFASTA(argv[1]);
-    while (ReadFASTA(ffp, &seq, &name, &L)) {
-        printf(">%s\n", name);
-        printf("%s\n", seq);
-
-        free(seq);
-        free(name);
-    }
-    CloseFASTA(ffp);
-    exit(0);
-}
-#endif /*TEST_FASTA_STUFF*/

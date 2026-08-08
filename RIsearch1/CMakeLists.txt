@@ -36,7 +36,7 @@ set(RISEARCH1_DEFINES MATPATH="${RISEARCH_MATPATH}" RISVERSION=1)
 # -fpermissive downgrades the void*-to-T* conversions that C allows implicitly and
 # C++ does not. It is scaffolding for the C-to-C++ move: each malloc site wants a
 # static_cast, and this comes back out once they all have one.
-set(RISEARCH1_WARNINGS -Wall -pedantic -fpermissive)
+set(RISEARCH1_WARNINGS -Wall -Wextra -Wnon-virtual-dtor -Wduplicated-branches -Wduplicated-cond -pedantic -fpermissive)
 
 # setup.py copies bin/RIsearch into the wheel, so both binaries land where the
 # Makefile used to put them rather than in the build tree.

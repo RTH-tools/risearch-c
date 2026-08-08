@@ -1,13 +1,14 @@
 #pragma once
 
-#include <limits.h>
-#include <ctype.h>
+#include <climits>
+#include <cctype>
+#include <cstdio>
 
-#include <stdio.h>
+#include <cstdint>
 
 #define NEGINF INT_MIN / 2
 
-static unsigned char nt2index(char nt)
+[[maybe_unused]] static unsigned char nt2index(char nt)
 {
     switch (nt) {
     case 'A':
@@ -57,12 +58,12 @@ static char index2nt(unsigned char ix)
 }
 
 
-static int seq2ix(int len, const char* seq, unsigned char* retIx, const char* name,
+static int seq2ix(std::uint32_t len, const char* seq, unsigned char* retIx, const char* name,
                   const char* type)
 {
-    int i;
     int gapcnt = 0;
-    for (i = 0; i < len; i++) {
+
+    for (auto i = 0u; i < len; i++) {
         switch (seq[i]) {
         case 'A':
         case 'a':

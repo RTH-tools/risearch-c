@@ -6,7 +6,7 @@
 #include "nucleotide.h"
 
 
-static void printMat(int** mat, int rows, int cols, unsigned char* seq1, unsigned char* seq2)
+[[maybe_unused]] static void printMat(int** mat, int rows, int cols, unsigned char* seq1, unsigned char* seq2)
 {
     int i, j;
     printf("\t-");
@@ -22,7 +22,7 @@ static void printMat(int** mat, int rows, int cols, unsigned char* seq1, unsigne
     printf("\n\n");
 }
 
-static void printfloatMat(float** mat, int rows, int cols, unsigned char* seq1, unsigned char* seq2)
+[[maybe_unused]] static void printfloatMat(float** mat, int rows, int cols, unsigned char* seq1, unsigned char* seq2)
 {
     int i, j;
     printf("\t-");

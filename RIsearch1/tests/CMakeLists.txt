@@ -15,9 +15,13 @@ add_executable(risearch1_tests
     test_fasta.cpp
     system/test_end_to_end.cpp
     system/test_force_start.cpp
+    performance/bench_sweep.cpp
         test_string_utils.cpp
 )
 target_link_libraries(risearch1_tests PRIVATE risearch1_core GTest::gtest_main)
+# The benchmark includes linspace.h directly, so this target compiles the same
+# headers the library does and needs the same scaffolding flag.
+target_compile_options(risearch1_tests PRIVATE -fpermissive)
 target_include_directories(risearch1_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/system)
 target_compile_definitions(risearch1_tests PRIVATE
     RISEARCH_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/system/data")

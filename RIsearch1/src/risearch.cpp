@@ -28,7 +28,6 @@
 #include <unistd.h>
 
 
-#include "fasta.h"
 #include "nucleotide.h"
 #include "dsm.h"
 #include "cli.h"
@@ -37,16 +36,13 @@
 
 #include "memory/MallocRAII.hpp"
 #include "FastaRAII.h"
+#include "FastaRecord.h"
 
 /* values filled in by getArgs from the command line */
 static config_st config;
 
 int main(int argc, char* argv[])
 {
-    unsigned long len_seq1, len_seq2;
-    char *one, *two;
-
-    char *nameQ, *nameT;
     short dsm[6][6][6][6];
     int check;
     int count_q = 0, count_t = 0;
@@ -64,39 +60,44 @@ int main(int argc, char* argv[])
             fprintf(stderr, "Target file %s is not readable\n", config.seq2_file_name);
             return -1;
         }
-        while (ReadFASTA(target_fasta.handle(), &two, &nameT, &len_seq2)) {
+        FastaRecord target_record;
+
+        while (target_record.read(target_fasta.handle())) {
+            auto len_seq2 = target_record.get_size();
             count_q = 0;
             count_t++;
             MallocRAII<unsigned char> tseqIx(len_seq2);
             /*can be done already when reading in first place */
-            check = seq2ix(len_seq2, two, tseqIx.get(), nameT, "target");
+            check = seq2ix(len_seq2, target_record.get_sequence(), tseqIx.get(),
+                           target_record.get_name(), "target");
             if (check > 0)
                 len_seq2 -= check; /*removed gap characters */
             if (check < 0)
                 continue; /*non-alpha char in input */
-            free(two);    /*free'ing space for full seq, as we have it as ix version */
 
             if (config.seq1_file_name) {
                 /* query given as file */
                 FastaRAII query_fasta(config.seq1_file_name);
                 if (nullptr == query_fasta.handle()) {
                     fprintf(stderr, "Query file %s is not readable\n", config.seq1_file_name);
-                    free(nameT);
                     return -1;
                 }
-                while (ReadFASTA(query_fasta.handle(), &one, &nameQ, &len_seq1)) {
+                FastaRecord query_record;
+                while (query_record.read(query_fasta.handle())) {
                     count_q++;
+                    auto len_seq1 = query_record.get_size();
                     MallocRAII<unsigned char> qseqIx(len_seq1);
 
-                    check = seq2ix(len_seq1, one, qseqIx.get(), nameQ, "query");
+                    check = seq2ix(len_seq1, query_record.get_sequence(), qseqIx.get(),
+                                   query_record.get_name(), "query");
                     if (check > 0)
                         len_seq1 -= check; /*removed gap characters */
                     if (check < 0)
                         continue; /*non-alpha char in input */
-                    free(one);    /*free'ing space for full seq, as we have it as ix version */
                     if (config.printShort < 2 && (config.all_vs_all || count_t == count_q))
-                        printf("\n\nquery %d: %s (%lu nts) vs. target %d: %s (%lu nts)\n\n",
-                               count_q, nameQ, len_seq1, count_t, nameT, len_seq2);
+                        printf("\n\nquery %d: %s (%u nts) vs. target %d: %s (%u nts)\n\n",
+                               count_q, query_record.get_name(), len_seq1, count_t,
+                               target_record.get_name(), len_seq2);
                     if (config.weighted_positions || (config.force_start_val >= 0)) {
                         if (config.force_start_val < 0) {
                             fprintf(stderr, "Parameter -f must be set when using weights (-w).\n");
@@ -122,15 +123,15 @@ int main(int argc, char* argv[])
                     } else {
                         if (config.all_vs_all || count_t == count_q) {
                             RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
-                                         config.extension_penalty, config.min_score, nameQ, nameT,
+                                         config.extension_penalty, config.min_score,
+                                         query_record.get_name(), target_record.get_name(),
                                          config.mat_name, &config);
                         }
                     }
-                    free(nameQ);
                 }
             } else if (config.seq1_cli) {
                 /* query given as command line parameter */
-                len_seq1 = strlen(config.seq1_cli);
+                auto len_seq1 = strlen(config.seq1_cli);
                 MallocRAII<unsigned char> qseqIx(len_seq1);
                 check =
                     seq2ix(len_seq1, config.seq1_cli, qseqIx.get(), "from command line", "query");
@@ -140,8 +141,8 @@ int main(int argc, char* argv[])
                     return -1; /*non-alpha char in input -- break would loop through all query seqs,
                                   no use */
                 if (config.printShort < 2)
-                    printf("\n\nquery from_cli (%lu nts) vs. target %s (%lu nts)\n\n", len_seq1,
-                           nameT, len_seq2);
+                    printf("\n\nquery from_cli (%lu nts) vs. target %s (%u nts)\n\n", len_seq1,
+                           target_record.get_name(), len_seq2);
                 if (config.weighted_positions || (config.force_start_val >= 0)) {
                     if (config.force_start_val < 0) {
                         fprintf(stderr, "Parameter -f must be set when using weights (-w).\n");
@@ -163,7 +164,7 @@ int main(int argc, char* argv[])
                                              config.mat_name);
                 } else {
                     RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
-                                 config.extension_penalty, config.min_score, "from_cli", nameT,
+                                 config.extension_penalty, config.min_score, "from_cli", target_record.get_name(),
                                  config.mat_name, &config);
                 }
             } else {
@@ -171,12 +172,12 @@ int main(int argc, char* argv[])
                 /* is caught in getArg already -- alternative run seq against itself!? */
             }
 
-            free(nameT);
         }
     } else if (config.seq2_cli) {
         /*target given as command line parameter */
+        std::uint32_t len_seq2 = strlen(config.seq2_cli);
         MallocRAII<unsigned char> tseqIx(len_seq2);
-        len_seq2 = strlen(config.seq2_cli);
+
         check = seq2ix(len_seq2, config.seq2_cli, tseqIx.get(), "from command line", "target");
         if (check > 0)
             len_seq2 -= check; /*removed gap characters */
@@ -191,18 +192,19 @@ int main(int argc, char* argv[])
                 fprintf(stderr, "Query file %s is not readable\n", config.seq1_file_name);
                 return -1;
             }
-            while (ReadFASTA(query_fasta.handle(), &one, &nameQ, &len_seq1)) {
-                MallocRAII<unsigned char> qseqIx(len_seq1);
+            FastaRecord query_record;
+            while (query_record.read(query_fasta.handle())) {
+                auto len_seq1 = query_record.get_size();
+                MallocRAII<unsigned char>  qseqIx(len_seq1);
 
-                check = seq2ix(len_seq1, one, qseqIx.get(), nameQ, "query");
+                check = seq2ix(len_seq1, query_record.get_sequence(), qseqIx.get(), query_record.get_name(), "query");
                 if (check > 0)
                     len_seq1 -= check; /*removed gap characters */
                 if (check < 0)
                     continue; /*non-alpha char in input */
-                free(one);
 
                 if (config.printShort < 2)
-                    printf("\n\nquery %s (%lu nts) vs. target from_cli (%lu nts)\n\n", nameQ,
+                    printf("\n\nquery %s (%u nts) vs. target from_cli (%u nts)\n\n", query_record.get_name(),
                            len_seq1, len_seq2);
                 if (config.weighted_positions || (config.force_start_val >= 0)) {
                     if (config.force_start_val < 0) {
@@ -225,23 +227,23 @@ int main(int argc, char* argv[])
                                              config.mat_name);
                 } else {
                     RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
-                                 config.extension_penalty, config.min_score, nameQ, "from_cli",
+                                 config.extension_penalty, config.min_score, query_record.get_name(), "from_cli",
                                  config.mat_name, &config);
                 }
-                free(nameQ);
             }
         } else if (config.seq1_cli) {
             /* query given as command line parameter */
+
+            std::uint32_t len_seq1 = strlen(config.seq1_cli);
             MallocRAII<unsigned char> qseqIx(len_seq1);
 
-            len_seq1 = strlen(config.seq1_cli);
             check = seq2ix(len_seq1, config.seq1_cli, qseqIx.get(), "from command line", "query");
             if (check > 0)
                 len_seq1 -= check; /*removed gap characters */
             if (check < 0)
                 return -1; /* non-alpha char in input -- break would loop through queries, no use */
             if (config.printShort < 2)
-                printf("\n\nquery from_cli (%lu nts) vs. target from_cli (%lu nts)\n\n", len_seq1,
+                printf("\n\nquery from_cli (%u nts) vs. target from_cli (%u nts)\n\n", len_seq1,
                        len_seq2);
             if (config.weighted_positions || (config.force_start_val >= 0)) {
                 if (config.force_start_val < 0) {

@@ -6,7 +6,8 @@
 
 #pragma once
 
-#include <stdio.h>
+#include <cstdio>
+#include <cstdint>
 
 #define FASTA_MAXLINE 512 /* Requires FASTA file lines to be <512 characters */
 
@@ -15,14 +16,7 @@ typedef struct fastafile_s {
     char buffer[FASTA_MAXLINE];
 } FASTAFILE;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+FASTAFILE* OpenFASTA(const char* seqfile);
+int ReadFASTA(FASTAFILE* fp, char** ret_seq, char** ret_name, std::uint32_t* ret_L);
+void CloseFASTA(FASTAFILE* ffp);
 
-extern FASTAFILE* OpenFASTA(const char* seqfile);
-extern int ReadFASTA(FASTAFILE* fp, char** ret_seq, char** ret_name, unsigned long* ret_L);
-extern void CloseFASTA(FASTAFILE* ffp);
-
-#ifdef __cplusplus
-}
-#endif

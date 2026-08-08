@@ -24,7 +24,7 @@ TEST(Fasta, ReadsNameAndSequenceOfTheFirstRecord)
 
     char* seq = nullptr;
     char* name = nullptr;
-    unsigned long len = 0;
+    std::uint32_t len = 0;
     ASSERT_TRUE(ReadFASTA(ffp, &seq, &name, &len));
 
     EXPECT_STREQ(name, "aso1");
@@ -43,7 +43,7 @@ TEST(Fasta, ReadsEveryRecordThenStops)
 
     char* seq = nullptr;
     char* name = nullptr;
-    unsigned long len = 0;
+    std::uint32_t len = 0;
     int count = 0;
     while (ReadFASTA(ffp, &seq, &name, &len)) {
         EXPECT_EQ(len, 20u) << "record " << count;
@@ -63,7 +63,7 @@ TEST(FastaRAIITest, HandleIsUsableForAReadableFile)
 
     char* seq = nullptr;
     char* name = nullptr;
-    unsigned long len = 0;
+    std::uint32_t len = 0;
     ASSERT_TRUE(ReadFASTA(fasta.handle(), &seq, &name, &len));
     EXPECT_STREQ(name, "aso1");
     free(seq);

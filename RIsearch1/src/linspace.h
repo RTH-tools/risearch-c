@@ -13,17 +13,38 @@
 #include "math/Matrix.h"
 #include "memory/MallocRAII.hpp"
 
+struct RunningMax {
+    int score;
+    int pos_i;
+    int pos_j;
+
+    void set(int candidate, int pos_i, int pos_j)
+    {
+        score = candidate;
+        this->pos_i = pos_i;
+        this->pos_j = pos_j;
+    }
+
+    void set_if_better(int candidate, int pos_i, int pos_j)
+    {
+        if (candidate > score) {
+            score = candidate;
+            this->pos_i = pos_i;
+            this->pos_j = pos_j;
+        }
+    }
+};
+
 
 static void RIs(const unsigned char* query_seq,  /* query sequence - numeric representation */
                 const unsigned char* target_seq, /* target sequence - reversed */
-                int m,                     /* query seq length */
-                int n,                     /* target seq length */
-                short dsm[6][6][6][6],     /* scoring matrix */
-                IA* hit,                   /* pointer to struct, fill results */
+                int m,                           /* query seq length */
+                int n,                           /* target seq length */
+                short dsm[6][6][6][6],           /* scoring matrix */
+                IA* hit,                         /* pointer to struct, fill results */
                 const config_st* config)
 {
-    int maxi, maxj;   /* k is 0,1,2 for M,Ix,Iy !? - max will never be found in gapped anyway!? */
-    int maxval, maxk; /* maxk not needed!? k itself could even be char... */
+    int maxk = 0;               /* maxk not needed!? k itself could even be char... */
     int mVal, xVal, yVal, nVal; /* values coming from M, Ix, Iy, or starting a NEW alignment */
 
     MatrixInt M_RAII(m + 1, n + 1);  /* (Mis)Match */
@@ -33,7 +54,7 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
     int** Ix = Ix_RAII.get();
     int** Iy = Iy_RAII.get();
 
-    maxi = maxj = maxk = 0;
+    RunningMax running_max{};
 
     M[0][0] = Ix[0][0] = Iy[0][0] = 0;
 
@@ -67,9 +88,12 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
 
     M[1][1] =
         dsm[GAP][query_seq[0]][GAP][target_seq[0]]; /*MAX(0,dsm[GAP][qseq[0]][GAP][tseq[0]]); */
-    maxval =
+
+    // avoid set_if_better to preserve original behavior
+    running_max.score =
         M[1][1] +
         dsm[query_seq[0]][GAP][target_seq[0]][GAP]; /* MAX(0,dsm[qseq[0]][GAP][tseq[0]][GAP]); */
+
     /* (1,1) cell can not be in Ix or Iy state. */
     Ix[1][1] = Iy[1][1] = NEGINF;
 
@@ -86,13 +110,8 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
            M[i][1] = max3(xVal,nVal,0); */
         M[i][1] = dsm[GAP][query_seq[i - 1]][GAP][target_seq[0]]; /* MAX(0, ); */
 
-        const auto tmp = M[i][1] + dsm[query_seq[i - 1]][GAP][target_seq[0]][GAP];
-        if (tmp > maxval) {
-            maxval = tmp;
-            maxi = i;
-            maxj = 1;
-            maxk = 0;
-        }
+        running_max.set_if_better(M[i][1] + dsm[query_seq[i - 1]][GAP][target_seq[0]][GAP], i, 1);
+
 
         /* value for Ix matrix, case query sequence paired to gap (k=1) */
         /* prev. match, now gap - add (Xi-1, Xi; Y1, -) */
@@ -130,13 +149,7 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
         /* M[1][j] = max3(yVal,nVal,0); */
         M[1][j] = dsm[GAP][query_seq[0]][GAP][target_seq[j - 1]]; /* MAX(0, ); */
 
-        const auto tmp = M[1][j] + dsm[query_seq[0]][GAP][target_seq[j - 1]][GAP];
-        if (tmp > maxval) {
-            maxval = tmp;
-            maxi = 1;
-            maxj = j;
-            maxk = 0;
-        }
+        running_max.set_if_better(M[1][j] + dsm[query_seq[0]][GAP][target_seq[j - 1]][GAP], 1, j);
 
         /* value for Ix matrix, case query sequence paired to gap (k=1) */
         /* not possible in this column */
@@ -188,13 +201,8 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
             nVal = dsm[GAP][query_seq[i - 1]][GAP][target_seq[j - 1]];
 
             M[i][j] = max4(mVal, xVal, yVal, nVal);
-            const auto tmp = M[i][j] + dsm[query_seq[i - 1]][GAP][target_seq[j - 1]][GAP];
-            if (tmp > maxval) {
-                maxval = tmp;
-                maxi = i;
-                maxj = j;
-                maxk = 0;
-            }
+            running_max.set_if_better(M[i][j] + dsm[query_seq[i - 1]][GAP][target_seq[j - 1]][GAP],
+                                      i, j);
 
             /* value for Ix matrix, case query paired to gap (k=1) */
             /*coming from match, add (Xi-1, Xi; Yj, -) */
@@ -241,7 +249,7 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
         }
     }
 #ifdef VERBOSE
-    printf("found maxval %d on pos %d/%d in mat %d\n", maxval, maxi, maxj,
+    printf("found maxval %d on pos %d/%d in mat %d\n", running_max.score, running_max.pos_i, running_max.pos_j,
            maxk); /* pos are 1-based */
     printf("print F[0] matrix:\n");
     printMat(M, m + 1, n + 1, query_seq, target_seq);
@@ -254,8 +262,8 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
     /*backtrack*/
     auto tmp = (int)(1.5 * config->tblen);
 
-    auto i = maxi;
-    auto j = maxj;
+    auto i = running_max.pos_i;
+    auto j = running_max.pos_j;
     auto k = maxk; /* 0-1-2 M Ix Iy - should always be 0 to begin with */
     auto l = 0;    /* alilen so far -used in backtrack */
 
@@ -421,10 +429,10 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
     reverse_inplace(hit->ali_seq2.get(), l - 1);
 
     hit->qbeg = i + 1;
-    hit->qend = maxi;
-    hit->tbeg = n + 1 - maxj;
+    hit->qend = running_max.pos_i;
+    hit->tbeg = n + 1 - running_max.pos_j;
     hit->tend = n - j;
-    hit->max = maxval;
+    hit->max = running_max.score;
     /*
       printf("%d - %d\n", i+1, maxi); //alignment in seq1 from to
       printf("%s\n%s\n", ali_seq1, ali_seq2);
@@ -439,8 +447,8 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
 static int
 RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric representation */
              unsigned char* target_sequence, /* target sequence */
-             int m,                          /* query seq length */
-             int n,                          /* target seq length */
+             std::uint32_t m,                          /* query seq length */
+             std::uint32_t n,                          /* target seq length */
              short dsm[6][6][6][6],          /* scoring matrix -- TODO variable length!? */
              int extensionpenalty, /* as used in dsm, to calc Score2fakE -- now also a global */
              int threshold,        /* give out hits higher than that */
@@ -450,12 +458,11 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
              const config_st* config)
 {
     const auto reference = reference_from_matrix(matname);
-
+    RunningMax running_max{};
 
     /* create a hit-struct instead and print from main or other sub?*/
     int **M, **Ix, **Iy; /* matrices for alignment scores ending in different states */
-    int maxi, maxj;
-    int maxval, maxk, testmax; /* maxk not needed!? - max will never be found in gapped anyway! */
+    int maxk, testmax; /* maxk not needed!? - max will never be found in gapped anyway! */
 
     unsigned char currentRow, lastRow; /* alternating 0;1 */
     int rowMax_score;
@@ -488,7 +495,7 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
     M = allocIntMatrix(2, m + 1);  /* (Mis)Match */
     Ix = allocIntMatrix(2, m + 1); /*Insertion in x(=query), so x paired to gap (in y) */
     Iy = allocIntMatrix(2, m + 1); /*Insertion(=bulge) in y(=target) */
-    maxi = maxj = maxk = 0;
+    maxk = 0;
     currentRow = lastRow = 1;
 
 #if VERBOSE > 1
@@ -508,7 +515,7 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
        scheme (not w/o looking further back) Iy[0][1] = M[0][1] = NEGINF; // not possible to occure
        -- TODO: in fact 0 works just as well
      */
-    for (auto i = 1; i <= m; i++) {
+    for (auto i = 1u; i <= m; i++) {
         Iy[0][i] = M[0][i] = NEGINF; /* not possible before beginning of target seq */
         Ix[0][i] = 0;                /*MAX(0, dsm[qseq[i-2]][qseq[i-1]][GAP][GAP]); */
                                      /* do not bother, require to always have a match first!? */
@@ -541,7 +548,7 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
     /* (1,1) cell can not be in Ix or Iy state. */
     Ix[1][1] = Iy[1][1] = NEGINF;
 
-    for (auto i = 2; i <= m; i++) {
+    for (auto i = 2u; i <= m; i++) {
         /* value for M matrix, case we have a pair here (k=0) */
         M[1][i] = dsm[GAP][query_sequence[i - 1]][GAP][target_sequence[n - 1]];
         /*had been 3 possibilities before, removed case
@@ -604,11 +611,10 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
 
     hs[0] = rowMax_score;
     hp[0] = rowMax_pos;
-    maxval = rowMax_score;
-    maxi = rowMax_pos;
-    maxj = 1; /*can be set in init */
 
-    for (auto j = 2; j <= n; j++) { /* new row */
+    running_max.set(rowMax_score, rowMax_pos, 1);
+
+    for (auto j = 2u; j <= n; j++) { /* new row */
         lastRow = currentRow;
         currentRow = j % 2;
         /*changes for pruning:
@@ -664,7 +670,7 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
         */
         /* finished init of i=1 col */
 
-        for (auto i = 2; i <= m; i++) { /* cols */ /* alt bed: *p1  */
+        for (auto i = 2u; i <= m; i++) { /* cols */ /* alt bed: *p1  */
 
             /* value for M matrix, case we have a pair here (k=0) */
             M[currentRow][i] = max4(
@@ -730,11 +736,7 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
         hs[j - 1] = rowMax_score;
         hp[j - 1] = rowMax_pos;
 
-        if (rowMax_score > maxval) {
-            maxval = rowMax_score;
-            maxi = rowMax_pos;
-            maxj = j;
-        }
+        running_max.set_if_better(rowMax_score, rowMax_pos, j);
 #if VERBOSE > 1
         printf("\n%c\t-NI", (index2nt(*(target_sequence + n - j))));
         for (tmpi = 1; tmpi <= m; tmpi++)
@@ -753,21 +755,21 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
     */
     if (!(config->doSubopt && (config->filter_e || config->printShort > 1))) {
 #ifdef VERBOSE
-        printf("found maxval %d on pos %d/%d in mat %d\n", maxval, maxi, maxj,
+        printf("found maxval %d on pos %d/%d in mat %d\n", running_max.score, running_max.pos_i, running_max.pos_j,
                maxk); /* pos are 1-based */
-        printf("equals end pos in query: %d - start pos in target: %d\n", maxi, n + 1 - maxj);
+        printf("equals end pos in query: %d - start pos in target: %d\n", running_max.pos_i, n + 1 - running_max.pos_j);
 #endif
 
         /*do backtrack for this one only! by recomputing whole matrix for this subsection */
         /* max going back config->tblen */
-        tmpQbeg = maxi > config->tblen - 1 ? maxi - (config->tblen - 1) : 1;
-        tmpTend = maxj > config->tblen - 1 ? maxj - (config->tblen - 1) : 1;
-        tmpQlen = maxi - tmpQbeg + 1;
-        tmpTlen = maxj - tmpTend + 1;
+        tmpQbeg = running_max.pos_i > config->tblen - 1 ? running_max.pos_i - (config->tblen - 1) : 1;
+        tmpTend = running_max.pos_j > config->tblen - 1 ? running_max.pos_j - (config->tblen - 1) : 1;
+        tmpQlen = running_max.pos_i - tmpQbeg + 1;
+        tmpTlen = running_max.pos_j - tmpTend + 1;
 
 #ifdef VERBOSE
         printf("going to realign query %d - %d (len: %hd) vs. target: %d - %d (len: %hd)\n",
-               tmpQbeg, maxi, tmpQlen, n + 1 - tmpTend, n + 1 - maxj, tmpTlen);
+               tmpQbeg, running_max.pos_i, tmpQlen, n + 1 - tmpTend, n + 1 - running_max.pos_j, tmpTlen);
 #endif
 
         for (auto i = 0; i < tmpQlen; i++) {
@@ -814,14 +816,15 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
         printf("full final ali:\n");
 #endif
         /*number of nt in ia to recalc Score2fakE - only tmp no need to store... */
-        const auto energy = (maxHit.max + extensionpenalty * maxHit.nucleotide_count() - reference) / (-100.0);
+        const auto energy =
+            (maxHit.max + extensionpenalty * maxHit.nucleotide_count() - reference) / (-100.0);
 
 
         /** TODO :: use maxHit.max OR maxval==hits_score[maxj-1] in output !?!? **/
         if (energy <= config->max_energy) {
             if (config->printShort == 1) {
                 printf("%d\t%d\t%d\t%d\t%.2f\n", tmpQbeg + maxHit.qbeg - 1,
-                       tmpQbeg + maxHit.qend - 1, n - maxj + maxHit.tbeg, n - maxj + maxHit.tend,
+                       tmpQbeg + maxHit.qend - 1, n - running_max.pos_j + maxHit.tbeg, n - running_max.pos_j + maxHit.tend,
                        energy);
                 /* to be consistent with other output:
                         printf("%d\t%d\t%d\t%d\t%.2f\t%s\n", tmpQbeg+maxHit.qbeg-1,
@@ -830,12 +833,12 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
                 */
             } else if (config->printShort == 2) {
                 printf("%s\t%d\t%d\t%s\t%d\t%d\t%d\t%.2f\n", qname, tmpQbeg + maxHit.qbeg - 1,
-                       tmpQbeg + maxHit.qend - 1, tname, n - maxj + maxHit.tbeg,
-                       n - maxj + maxHit.tend, maxval, energy);
+                       tmpQbeg + maxHit.qend - 1, tname, n - running_max.pos_j + maxHit.tbeg,
+                       n - running_max.pos_j + maxHit.tend, running_max.score, energy);
             } else if (config->printShort == 3) {
                 hitcount += 1;
             } else {
-                printf("Free energy [kcal/mol]: %.2f (%d)\n", energy, maxval);
+                printf("Free energy [kcal/mol]: %.2f (%d)\n", energy, running_max.score);
                 /*      printf("no of nucls in ia: %lu + %lu = %lu\n", maxHit.qend-maxHit.qbeg+1 ,
                  * maxHit.tend-maxHit.tbeg+1 ,
                  * maxHit.qend-maxHit.qbeg+1+maxHit.tend-maxHit.tbeg+1); */
@@ -844,7 +847,7 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
                        tmpQbeg + maxHit.qend - 1); /*alignment in seq1 from to */
                 printf("%s\n%s\n%s\n", maxHit.ali_seq1.get(), maxHit.ali_ia.get(),
                        maxHit.ali_seq2.get());
-                printf("%d - %d (3' <-- 5')\n", n - maxj + maxHit.tend, n - maxj + maxHit.tbeg);
+                printf("%d - %d (3' <-- 5')\n", n - running_max.pos_j + maxHit.tend, n - running_max.pos_j + maxHit.tbeg);
             }
         }
     }
@@ -912,7 +915,8 @@ RIs_linSpace(unsigned char* query_sequence,  /* query sequence - numeric represe
             RIs(tmpQseq.get(), tmpTseq.get(), tmpQlen, tmpTlen, dsm, &maxHit, config);
 
             /*number of nt in ia to recalc Score2fakE - only tmp no need to store... */
-            const auto energy = (maxHit.max + extensionpenalty * maxHit.nucleotide_count() - reference) / (-100.0);
+            const auto energy =
+                (maxHit.max + extensionpenalty * maxHit.nucleotide_count() - reference) / (-100.0);
 
 
             /* TODO anything about this or ignore !?
