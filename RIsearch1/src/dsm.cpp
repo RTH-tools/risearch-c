@@ -23,7 +23,7 @@
 /*equals dsm for extpen=0 */
 /* based on Turner 1999 parameters. */
 /* Compared to RIsearch1.1, here ending with a bulge has the same cost as continuing a bulge.*/
-short dsm_t99[6][6][6][6] = {{
+extern const short dsm_t99[6][6][6][6] = {{
                                  {{-24, -24, -24, -65, -24, -60},
                                   {-24, -24, -24, -65, -24, -60},
                                   {-24, -24, -24, 45, -24, -60},
@@ -254,7 +254,7 @@ short dsm_t99[6][6][6][6] = {{
 
 /* based on Turner 2004 parameters */
 /* Compared to RIsearch1.1, here ending with a bulge has the same cost as continuing a bulge.*/
-short dsm_t04[6][6][6][6] = {{{{-22, -22, -22, -70, -22, -71},
+extern const short dsm_t04[6][6][6][6] = {{{{-22, -22, -22, -70, -22, -71},
                                {-22, -22, -22, -70, -22, -71},
                                {-22, -22, -22, 30, -22, -71},
                                {-230, -230, -150, 90, -230, -285},
@@ -474,7 +474,7 @@ short dsm_t04[6][6][6][6] = {{{{-22, -22, -22, -70, -22, -71},
 /* DNA_DNA matrix based on Santa Lucia and Hicks 2004 parameters. G-T wobble is not allowed */
 /* Matrix converted to RIsearch1 format from RIsearch2.1. Compared to RIsearch2.1, here ending with
  * a bulge has the same cost as continuing a bulge.*/
-short dsm_slh04_woGU_pos[6][6][6][6] = {{{{-66, -66, -66, -76, -66, -63},
+extern const short dsm_slh04_woGU_pos[6][6][6][6] = {{{{-66, -66, -66, -76, -66, -63},
                                           {-66, -66, -66, -138, -66, -63},
                                           {-66, -66, -66, -79, -66, -63},
                                           {-363, -390, -316, 100, -435, -282},
@@ -694,7 +694,7 @@ short dsm_slh04_woGU_pos[6][6][6][6] = {{{{-66, -66, -66, -76, -66, -63},
  * as the mean of t04 and slh04 initiation or extension parameters. G-U wobble is allowed.*/
 /* Matrix converted to RIsearch1 format from RIsearch2.1. Compared to RIsearch2.1, here ending with
  * a bulge has the same cost as continuing a bulge.*/
-short dsm_su95_rev_wGU_pos[6][6][6][6] = {{{{-44, -44, -44, -61, -44, -67},
+extern const short dsm_su95_rev_wGU_pos[6][6][6][6] = {{{{-44, -44, -44, -61, -44, -67},
                                             {-44, -44, -44, -91, -44, -67},
                                             {-44, -44, -44, -12, -44, -67},
                                             {-283, -297, -220, 100, -319, -283},
@@ -916,7 +916,7 @@ short dsm_su95_rev_wGU_pos[6][6][6][6] = {{{{-44, -44, -44, -61, -44, -67},
  * seed */
 /* Matrix converted to RIsearch1 format from RIsearch2.1. Compared to RIsearch2.1, here ending with
  * a bulge has the same cost as continuing a bulge.*/
-short dsm_su95_rev_woGU_pos[6][6][6][6] = {{{{-44, -44, -44, -61, -44, -67},
+extern const short dsm_su95_rev_woGU_pos[6][6][6][6] = {{{{-44, -44, -44, -61, -44, -67},
                                              {-44, -44, -44, -91, -44, -67},
                                              {-44, -44, -44, -12, -44, -67},
                                              {-283, -297, -220, 100, -319, -283},
@@ -1134,7 +1134,7 @@ short dsm_su95_rev_woGU_pos[6][6][6][6] = {{{{-44, -44, -44, -61, -44, -67},
                                              {-123, -123, -123, -123, -123, -2000}}}};
 
 /*#nt added, to be multiplied by extpen */
-short dsm_extend[6][6][6][6] = {{
+extern const short dsm_extend[6][6][6][6] = {{
                                     {{2, 2, 2, 2, 2, 1},
                                      {2, 2, 2, 2, 2, 1},
                                      {2, 2, 2, 2, 2, 1},
