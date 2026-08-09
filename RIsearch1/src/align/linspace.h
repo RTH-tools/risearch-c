@@ -71,214 +71,142 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
      * This scheme can't score dangling ends.
      *
      */
-    for (auto i =1u; i <= m; ++i) {
+    for (auto i = 1u; i <= m; ++i) {
         Iy[0][i] = M[0][i] = NEGINF;
         Ix[0][i] = 0;
     }
 
 
-
     /* init j=1 row */
     /*init first col (i=0) */
-    Iy[1][0] = 0; /* MAX(0, dsm[GAP][GAP][GAP][tseq[n-1]]); */ /*n-1 is last nt in target; used to
-                                                                  be 0 after reversion */
+    Iy[1][0] = 0;
     Ix[1][0] = M[1][0] = NEGINF;
 
+    // n - 1 is the last nt in target
     M[1][1] = dsm[GAP][query_sequence[0]][GAP][target_sequence[n - 1]];
-    /*    maxval = M[1][1] + MAX(0,dsm[qseq[0]][GAP][tseq[n-1]][GAP]); ---- why should we allow a
-     * special treatment here!? */
-    auto rowMax_score = M[1][1] + dsm[query_sequence[0]][GAP][target_sequence[n - 1]][GAP];
-    auto rowMax_pos = 1;
+
+    RunningRowMax running_row_max{};
+    running_row_max.set(M[1][1] + dsm[query_sequence[0]][GAP][target_sequence[n - 1]][GAP], 1);
 
     /* (1,1) cell can not be in Ix or Iy state. */
     Ix[1][1] = Iy[1][1] = NEGINF;
 
+    const auto t_last = target_sequence[n - 1];
+
     for (auto i = 2u; i <= m; i++) {
-        /* value for M matrix, case we have a pair here (k=0) */
-        M[1][i] = dsm[GAP][query_sequence[i - 1]][GAP][target_sequence[n - 1]];
-        /*had been 3 possibilities before, removed case
-         Ix[0][i-1] != 0 ? Ix[0][i-1] + dsm[qseq[i-2]][qseq[i-1]][GAP][tseq[n-1]] : -1,
-         as above all Ix[0][i] are set to 0
-        */
+        const auto q_prev = query_sequence[i - 2];
+        const auto q_cur = query_sequence[i - 1];
 
-        /* max so far? */
-        if (const auto testmax =
-                M[1][i] + dsm[query_sequence[i - 1]][GAP][target_sequence[n - 1]][GAP];
-            (testmax > rowMax_score)) {
-            rowMax_score = testmax;
-            rowMax_pos = i;
-        }
+        const auto open_score = dsm[GAP][q_cur][GAP][t_last];
+        const auto close_score = dsm[q_cur][GAP][t_last][GAP];
 
-        /* value for Ix matrix, case query sequence paired to gap (k=1) */
+        M[1][i] = open_score;
+        running_row_max.set_if_better(M[1][i] + close_score, i);
+
         /* removed one option, namely: start new alignment that starts in gap, reflected by (-, Xi;
          * -, -)  */
-        Ix[1][i] = max3(
-            0,
-            /* prev. match, now gap (no match possible before!?)  - add (Xi-1, Xi; Y1, -) */
-            M[1][i - 1] != 0
-                ? M[1][i - 1] +
-                      dsm[query_sequence[i - 2]][query_sequence[i - 1]][target_sequence[n - 1]][GAP]
-                : -1,
-            /* extending existing gap  - add (Xi-1, Xi; -, -) */
-            Ix[1][i - 1] != 0
-                ? Ix[1][i - 1] + dsm[query_sequence[i - 2]][query_sequence[i - 1]][GAP][GAP]
-                : -1
-            /* OR start new alignment that starts in gap, reflected by (-, Xi; -, -)
-               dsm[GAP][qseq[i-1]][GAP][GAP] */
-        );
-        /* do NOT allow max other than match state!? -- however (Xi, -; -, -) is positive!?
-            testmax = Ix[1][i] + dsm[qseq[i-1]][GAP][GAP][GAP];
-            if (testmax > maxval) {
-              maxval = testmax;
-              maxi = i; maxj = 1;
-            }
-        */
-        /* value for Iy matrix, case target sequence paired to gap (k=2) */
-        /* not possible in this row */
+        Ix[1][i] =
+            max3(0,
+                 /* prev. match, now gap (no match possible before!?)  - add (Xi-1, Xi; Y1, -) */
+                 M[1][i - 1] != 0 ? M[1][i - 1] + dsm[q_prev][q_cur][t_last][GAP] : -1,
+                 /* extending existing gap  - add (Xi-1, Xi; -, -) */
+                 Ix[1][i - 1] != 0 ? Ix[1][i - 1] + dsm[q_prev][q_cur][GAP][GAP] : -1);
+
+        // There is no previous row, so there can't be a bulge.
         Iy[1][i] = NEGINF;
     }
+    running_max.set(running_row_max.score, running_row_max.pos_i, 1);
 
-    /* initialization of first rows and columns completed
-       recursion to complete alignment with two residues follows
+
+    /**
+     * The first row can only hold 1nt, so NN terms only now begin to apply.
      */
 
-    /*no need to store rowMax_score in the first place, can access hits_score[] just as fast!? (keep
-     * pointer to current) */
-    /* Raw pointers for the sweep: reading through the owner means the compiler
-       reloads its member across the calls in the loop. */
+    // hs[j - 1] and hp[j - 1] hold the best alignment ending at pos j
     int* const hs = hits_score.get();
     int* const hp = hits_pos.get();
 
-    hs[0] = rowMax_score;
-    hp[0] = rowMax_pos;
+    hs[0] = running_row_max.score;
+    hp[0] = running_row_max.pos_i;
 
-    running_max.set(rowMax_score, rowMax_pos, 1);
 
-    for (auto j = 2u; j <= n; j++) { /* new row */
+    for (auto j = 2u; j <= n; j++) {
+        /* Begin init of i=1 case */
         const auto currentRow = j % 2;
-        const auto lastRow = 1 - currentRow; // If currentRow 1 --> 0, if 0 --> 1
-
-        /*changes for pruning:
-           switch rows and col / mat[i][j] becomes mat[j][i]
-           matIndex  j-1       becomes  lastRow
-           matIndex   j        becomes  currentRow
-           last nt  tseq[j-2]  becomes  tseq[n-j+1]
-           this nt  tseq[j-1]  becomes  tseq[n-j]
-         */
-
-        /* TODO better solved with additional running pointer to *(n-j) ?? */
-
-        /* init i=0 column */
-        /* no need do do this all over - will not change - no diff if NEGINF or 0 - so already set
-           by init of row j=0 and j=1 Ix[currentRow][0] = M[currentRow][0] = NEGINF;
-           Iy[currentRow][0] = 0; *//*MAX(0, dsm[GAP][GAP][tseq[n-j+1]][tseq[n-j]]); */
-
-        /* init i=1 column */
+        const auto lastRow = 1 - currentRow;
 
         const auto target_current = target_sequence[n - j];
         const auto target_prev = target_sequence[n - j + 1];
 
-        /* value for M matrix, case we have a pair here (k=0) */
-        M[currentRow][1] = MAX(0, dsm[GAP][query_sequence[0]][GAP][target_current]);
-        /* starting a new alignment with (-, X1; -, Yj)  OR  0 if not possible */
-        /* coming from gap in tseq NOT possible as we're looking at first position of query! */
-        /*had been 3 possibilities before, removed case 'coming from gap in qseq (Iy-matrix), adding
-           (-, X1; Yj-1, Yj)' Iy[lastRow][0] != 0 ? Iy[lastRow][0] +
-           dsm[GAP][qseq[0]][tseq[n-j+1]][tseq[n-j]] : -1, as above all Iy[j][0] are set to 0
-         */
 
-        rowMax_score =
-            M[currentRow][1] +
-            dsm[query_sequence[0]][GAP][target_current][GAP]; /*stricter only if not 0 before!? */
-        rowMax_pos = 1;
-        /* this would be a single pair w/o stacking, could save this check as well!? */
+        /* Column 1 is the query's first nt, nothing can precede it */
+        const auto open_score_1 = dsm[GAP][query_sequence[0]][GAP][target_current];
+        const auto close_score_1 = dsm[query_sequence[0]][GAP][target_current][GAP];
+        M[currentRow][1] = MAX(0, open_score_1);
 
-        /* value for Ix matrix, case query sequence paired to gap (k=1) */
-        /* not possible in this column */
+        running_row_max.set(M[currentRow][1] + close_score_1, 1);
+
+        // Ix bulges a query nt, impossible in 1st nucleotide
         Ix[currentRow][1] = NEGINF;
 
-        /* value for Iy matrix, case target sequence paired to gap (k=2) */
-        /* removed one option, namely: start new ali starting w/ gap, (-, -; Yj, -)  //
-         * dsm[GAP][GAP][GAP][tseq[n-j]] */
+        // Iy bulges a target nt, j>=2 so bulge possible.
+        // Only M can win row max, so we don't take this as a candidate
         Iy[currentRow][1] = MAX(
-            /*coming from match, opening gap - add (X1, -; Yj-1, Yj) */
+            // We are now opening the bulge
             M[lastRow][1] + dsm[query_sequence[0]][GAP][target_prev][target_current],
-            /* extending an existing gap - add (-, -; Yj-1, Yj) */
+            // We are extending a bulge
             Iy[lastRow][1] + dsm[GAP][GAP][target_prev][target_current]);
-        /*  do NOT allow max other than match state!? -- however (-, -; *, -) is positive!?
-            testmax = Iy[currentRow][1] + dsm[GAP][GAP][tseq[n-j]][GAP];
-            if (testmax > maxval) {
-              maxval = testmax;
-              maxi = 1; maxj = j;
-            }
-        */
+
         /* finished init of i=1 col */
 
-        for (auto i = 2u; i <= m; i++) { /* cols */ /* alt bed: *p1  */
+        for (auto i = 2u; i <= m; i++) {
+            const auto q_prev = query_sequence[i - 2];
+            const auto q_cur = query_sequence[i - 1];
 
-            /* value for M matrix, case we have a pair here (k=0) */
+            const auto open_score_i = dsm[GAP][q_cur][GAP][target_current];
+            const auto close_score_i = dsm[q_cur][GAP][target_current][GAP];
+
             M[currentRow][i] = max4(
-                /* coming from a match, add (Xi-1, Xi; Yi-1, Yi) */
+                /* coming from a match */
                 M[lastRow][i - 1] != 0
-                    ? M[lastRow][i - 1] + dsm[query_sequence[i - 2]][query_sequence[i - 1]]
-                                             [target_sequence[n - j + 1]][target_sequence[n - j]]
+                    ? M[lastRow][i - 1] +
+                          dsm[q_prev][q_cur][target_sequence[n - j + 1]][target_sequence[n - j]]
                     : -1,
-                /* coming from gap in target, add (Xi-1, Xi; -, Yi) */
-                Ix[lastRow][i - 1] +
-                    dsm[query_sequence[i - 2]][query_sequence[i - 1]][GAP][target_current],
-                /* coming from gap in query, add (-, Xi; Yi-1, Yi) */
-                Iy[lastRow][i - 1] + dsm[GAP][query_sequence[i - 1]][target_prev][target_current],
-                /* starting a new alignment with this pair: (-, Xi; -, Yj) */
-                dsm[GAP][query_sequence[i - 1]][GAP][target_current]);
-            if (const auto testmax =
-                    M[currentRow][i] + dsm[query_sequence[i - 1]][GAP][target_current][GAP];
-                testmax > rowMax_score) {
-                rowMax_score = testmax;
-                rowMax_pos = i;
-            }
-            /* value for Ix matrix, case query paired to gap (k=1) */
-            /* removed one option, namely: start new alignment that starts in gap, reflected by (-,
-             * Xi; -, -) */
+                /* coming from gap in target */
+                Ix[lastRow][i - 1] + dsm[q_prev][q_cur][GAP][target_current],
+                /* coming from gap in query */
+                Iy[lastRow][i - 1] + dsm[GAP][q_cur][target_prev][target_current],
+                /* start fresh */
+                open_score_i);
+
+            /* Set the best alignment ending in position i for row j*/
+            running_row_max.set_if_better(M[currentRow][i] + close_score_i, i);
+
+            /**
+             * Ix: query nt against a gap
+             */
             Ix[currentRow][i] = MAX(
-                /*coming from match, add (Xi-1, Xi; Yj, -) */
-                M[currentRow][i - 1] +
-                    dsm[query_sequence[i - 2]][query_sequence[i - 1]][target_current][GAP],
-                /*extend existing gap, add (Xi-1, Xi; -, -) */
-                Ix[currentRow][i - 1] + dsm[query_sequence[i - 2]][query_sequence[i - 1]][GAP][GAP]
-                /* start new alignment - starts with gap LEGAL!?
-                   dsm[GAP][qseq[i-1]][GAP][GAP] */
+                // pair at i - 1, now bulge
+                M[currentRow][i - 1] + dsm[q_prev][q_cur][target_current][GAP],
+                // already bulging, add one more
+                Ix[currentRow][i - 1] + dsm[q_prev][q_cur][GAP][GAP]
             );
-            /* only M[][] can be max, point of backtrack...
-                  testmax = Ix[currentRow][i] + dsm[qseq[i-1]][GAP][GAP][GAP];
-                  if (testmax > maxval) {
-                    maxval = testmax;
-                    maxi = i; maxj = j;
-                  }
-            */
-            /* value for Iy matrix, case target paired to gap (k=2) */
-            /* removed one option, namely: start new ali starting w/ gap, (-, -; Yj, -)  //
-             * dsm[GAP][GAP][GAP][tseq[n-j]] */
+
+            /**
+             * Iy: target nt against a gap
+             */
             Iy[currentRow][i] = MAX(
-                /*coming from match, add (Xi, -; Yj-1, Yj) */
-                M[lastRow][i] + dsm[query_sequence[i - 1]][GAP][target_prev][target_current],
-                /*extend existing gap, add (-, -; Yj-1, Yj) */
+                // pair at previous row, now bulge
+                M[lastRow][i] + dsm[q_cur][GAP][target_prev][target_current],
+                // already bulging, add one more
                 Iy[lastRow][i] + dsm[GAP][GAP][target_prev][target_current]
-                /* start new alignment - starts with gap LEGAL!?
-                   dsm[GAP][GAP][GAP][tseq[n-j]] */
             );
-            /*  only M[][] can be max, point of backtrack...
-                  testmax = Iy[currentRow][i] + dsm[GAP][GAP][tseq[n-j]][GAP];
-                  if (testmax > maxval) {
-                    maxval = testmax;
-                    maxi = i; maxj = j;
-                  }
-            */
         }
 
-        hs[j - 1] = rowMax_score;
-        hp[j - 1] = rowMax_pos;
+        hs[j - 1] = running_row_max.score;
+        hp[j - 1] = running_row_max.pos_i;
 
-        running_max.set_if_better(rowMax_score, rowMax_pos, j);
+        running_max.set_if_better(running_row_max.score, running_row_max.pos_i, j);
 
     } /*next row j */
 

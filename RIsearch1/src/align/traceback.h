@@ -1,13 +1,11 @@
 #pragma once
 
+#include <cstring>
+
 #include "InteractionAlignment.h"
 #include "cli.h"
-
-#include <cstring>
 #include "debug_print.h"
 #include "string_util.h"
-#include "dsm_profile.h"
-#include "math/Matrix.h"
 
 static void RIs(const unsigned char* query_seq,  /* query sequence - numeric representation */
                 const unsigned char* target_seq, /* target sequence - reversed */
