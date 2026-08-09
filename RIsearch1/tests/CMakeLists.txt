@@ -1,23 +1,18 @@
 include(FetchContent)
 
 FetchContent_Declare(googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG        v1.15.2
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG        v1.15.2
 )
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(risearch1_tests
-    test_nucleotide.cpp
-    test_operations.cpp
-    test_alignment_symbols.cpp
-    test_dsm.cpp
-    test_fasta.cpp
-    system/test_end_to_end.cpp
-    system/test_force_start.cpp
-    performance/bench_sweep.cpp
-        test_string_utils.cpp
-)
+# Every test and benchmark under tests/, at any depth, so a new file needs no
+# CMake change. Same pattern the library uses for src/.
+file(GLOB_RECURSE RISEARCH1_TEST_SOURCES CONFIGURE_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+
+add_executable(risearch1_tests ${RISEARCH1_TEST_SOURCES})
 target_link_libraries(risearch1_tests PRIVATE risearch1_core GTest::gtest_main)
 # The benchmark includes linspace.h directly, so this target compiles the same
 # headers the library does and needs the same scaffolding flag.
@@ -27,4 +22,4 @@ target_compile_options(risearch1_tests PRIVATE -fpermissive ${RISEARCH1_WARNINGS
 risearch1_optimise(risearch1_tests)
 target_include_directories(risearch1_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/system)
 target_compile_definitions(risearch1_tests PRIVATE
-    RISEARCH_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/system/data")
+        RISEARCH_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/system/data")

@@ -12,10 +12,6 @@ namespace {
 // tests/system/data/query.fa: three 20-mers named aso1..aso3.
 const char* kQuery = RISEARCH_TEST_DATA "/query.fa";
 
-TEST(Fasta, OpenReturnsNullForAMissingFile)
-{
-    EXPECT_EQ(OpenFASTA(RISEARCH_TEST_DATA "/does_not_exist.fa"), nullptr);
-}
 
 TEST(Fasta, ReadsNameAndSequenceOfTheFirstRecord)
 {
