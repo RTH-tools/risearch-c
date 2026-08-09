@@ -13,11 +13,8 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
                 int n,                           /* target seq length */
                 short dsm[6][6][6][6],           /* scoring matrix */
                 IA* hit,                         /* pointer to struct, fill results */
-                const config_st* config,
-                int** M,
-                int** Ix,
-                int** Iy
-                )
+                const config_st* config, int** M, int** Ix, int** Iy, const QueryProfile& profile,
+                int q_offset)
 {
     int maxk = 0;               /* maxk not needed!? k itself could even be char... */
     int mVal, xVal, yVal, nVal; /* values coming from M, Ix, Iy, or starting a NEW alignment */
@@ -26,26 +23,16 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
 
     M[0][0] = Ix[0][0] = Iy[0][0] = 0;
 
-    /*init first row (j=0) -- this is COL - change throughout!? */
-
-    /* explicitly handling of the boundary condition since i-2 is not defined for i = 1
-       NOT needed anymore, is now just 0 anyway
-       Ix[1][0] = 0; //MAX(0, dsm[GAP][qseq[0]][GAP][GAP]);
-       Iy[1][0] = M[1][0] = NEGINF; // not possible to occure
-     */
+    // First col assign
     for (auto i = 1; i <= m; i++) {
         Iy[i][0] = M[i][0] = NEGINF; /* not possible before beginning of target seq */
-        Ix[i][0] = 0; /*MAX(0, dsm[qseq[i-2]][qseq[i-1]][GAP][GAP]); */ /* require to always have a
-                                                                           match first! */
+        Ix[i][0] = 0;
     }
 
-    /*init first col (i=0) --- this is ROW - change throughout!?
-       Iy[0][1] = 0; // MAX(0, dsm[GAP][GAP][GAP][tseq[0]]);
-       Ix[0][1] = M[0][1] = NEGINF;
-     */
+    // First row assign
     for (auto j = 1; j <= n; j++) {
         Ix[0][j] = M[0][j] = NEGINF;
-        Iy[0][j] = 0; /*MAX(0, dsm[GAP][GAP][tseq[j-2]][tseq[j-1]]); */
+        Iy[0][j] = 0;
     }
 
     /* The initialization of i=1 column and j=1 row have to be handled explicitly
@@ -54,41 +41,32 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
        Handle the (1,1) cell explicitly since the boundary recursion includes (i-2) or (j-2) cases.
      */
 
-    M[1][1] =
-        dsm[GAP][query_seq[0]][GAP][target_seq[0]]; /*MAX(0,dsm[GAP][qseq[0]][GAP][tseq[0]]); */
+    const auto open_score_1 = dsm[GAP][query_seq[0]][GAP][target_seq[0]];
+    M[1][1] = open_score_1;
 
-    // avoid set_if_better to preserve original behavior
-    running_max.score =
-        M[1][1] +
-        dsm[query_seq[0]][GAP][target_seq[0]][GAP]; /* MAX(0,dsm[qseq[0]][GAP][tseq[0]][GAP]); */
+    const auto close_score_1 = dsm[query_seq[0]][GAP][target_seq[0]][GAP];
+    running_max.set(M[1][1] + close_score_1, 1, 1);
 
     /* (1,1) cell can not be in Ix or Iy state. */
     Ix[1][1] = Iy[1][1] = NEGINF;
 
-    /* init j=1 row */
+    /* init j=1 col */
     for (auto i = 2; i <= m; i++) {
-        /* value for M matrix, case we have a pair here (k=0) */
-        /* first letter of target sequence, so it can ONLY come from gapped */
-        /* if previous cell has not been 0, than add current pair */
-        /* if the case is removed on top, it can be here as well, save checks...
+        const auto q_cur = query_seq[i - 1];
+        const auto q_prev = query_seq[i - 2];
 
-           xVal = Ix[i-1][0] != 0 ? Ix[i-1][0] + dsm[qseq[i-2]][qseq[i-1]][GAP][tseq[0]] : -1; //
-           reflects (i-1,i;-,1)  coming from Ix (seq1 paired to gap) otherwise - could start NEW ali
-           here OR 0 if nothing else scores positive nVal = dsm[GAP][qseq[i-1]][GAP][tseq[0]];
-           M[i][1] = max3(xVal,nVal,0); */
-        M[i][1] = dsm[GAP][query_seq[i - 1]][GAP][target_seq[0]]; /* MAX(0, ); */
+        const auto open_score_i = dsm[GAP][query_seq[i - 1]][GAP][target_seq[0]];
+        M[i][1] = open_score_i;
 
-        running_max.set_if_better(M[i][1] + dsm[query_seq[i - 1]][GAP][target_seq[0]][GAP], i, 1);
+        const auto close_score_i = dsm[query_seq[i - 1]][GAP][target_seq[0]][GAP];
+        running_max.set_if_better(M[i][1] + close_score_i, i, 1);
 
 
         /* value for Ix matrix, case query sequence paired to gap (k=1) */
         /* prev. match, now gap - add (Xi-1, Xi; Y1, -) */
-        mVal = M[i - 1][1] != 0
-                   ? M[i - 1][1] + dsm[query_seq[i - 2]][query_seq[i - 1]][target_seq[0]][GAP]
-                   : -1;
+        mVal = M[i - 1][1] != 0 ? M[i - 1][1] + dsm[q_prev][q_cur][target_seq[0]][GAP] : -1;
         /* extending existing gap  - add (Xi-1, Xi; -, -) */
-        xVal = Ix[i - 1][1] != 0 ? Ix[i - 1][1] + dsm[query_seq[i - 2]][query_seq[i - 1]][GAP][GAP]
-                                 : -1;
+        xVal = Ix[i - 1][1] != 0 ? Ix[i - 1][1] + dsm[q_prev][q_cur][GAP][GAP] : -1;
         /* OR start new alignment that starts in gap, reflected by (-, Xi; -, -)  */
         /* nVal = dsm[GAP][qseq[i-1]][GAP][GAP]; */
         /*Ix[i][1] = max4(mVal,xVal,nVal,0); */
@@ -147,41 +125,32 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
        recursion to complete alignment with two residues follows
      */
     for (auto i = 2; i <= m; i++) {
+        const auto qp = q_offset + i;
+        const auto ix_ext_i = profile.ix_extend()[qp];
+
         /*alt bed: *p1  */
         for (auto j = 2; j <= n; j++) {
+            const auto combo = QueryProfile::context(target_seq[j - 2], target_seq[j - 1]);
+            const RowTerms& t = profile.row(combo)[qp];
+
             /* value for M matrix, case we have a pair here (k=0) */
             /* coming from a match, add (Xi-1, Xi; Yi-1, Yi) */
-            mVal = M[i - 1][j - 1] != 0
-                       ? M[i - 1][j - 1] + dsm[query_seq[i - 2]][query_seq[i - 1]]
-                                              [target_seq[j - 2]][target_seq[j - 1]]
-                       : -1;
+            mVal = M[i - 1][j - 1] != 0 ? M[i - 1][j - 1] + t.m_from_m : -1;
             /* coming from gap in target, add (Xi-1, Xi; -, Yi) */
-            xVal = Ix[i - 1][j - 1] != 0
-                       ? Ix[i - 1][j - 1] +
-                             dsm[query_seq[i - 2]][query_seq[i - 1]][GAP][target_seq[j - 1]]
-                       : -1;
+            xVal = Ix[i - 1][j - 1] != 0 ? Ix[i - 1][j - 1] + t.m_from_ix : -1;
             /* coming from gap in query, add (-, Xi; Yi-1, Yi) */
-            yVal = Iy[i - 1][j - 1] != 0
-                       ? Iy[i - 1][j - 1] +
-                             dsm[GAP][query_seq[i - 1]][target_seq[j - 2]][target_seq[j - 1]]
-                       : -1;
+            yVal = Iy[i - 1][j - 1] != 0 ? Iy[i - 1][j - 1] + t.m_from_iy : -1;
             /* starting a new alignment with this pair: (-, Xi; -, Yj) */
-            nVal = dsm[GAP][query_seq[i - 1]][GAP][target_seq[j - 1]];
+            nVal = t.m_open;
 
             M[i][j] = max4(mVal, xVal, yVal, nVal);
-            running_max.set_if_better(M[i][j] + dsm[query_seq[i - 1]][GAP][target_seq[j - 1]][GAP],
-                                      i, j);
+            running_max.set_if_better(M[i][j] + t.close, i, j);
 
             /* value for Ix matrix, case query paired to gap (k=1) */
             /*coming from match, add (Xi-1, Xi; Yj, -) */
-            mVal =
-                M[i - 1][j] != 0
-                    ? M[i - 1][j] + dsm[query_seq[i - 2]][query_seq[i - 1]][target_seq[j - 1]][GAP]
-                    : -1;
+            mVal = M[i - 1][j] != 0 ? M[i - 1][j] + t.ix_from_m : -1;
             /*extend existing gap, add (Xi-1, Xi; -, -) */
-            xVal = Ix[i - 1][j] != 0
-                       ? Ix[i - 1][j] + dsm[query_seq[i - 2]][query_seq[i - 1]][GAP][GAP]
-                       : -1;
+            xVal = Ix[i - 1][j] != 0 ? Ix[i - 1][j] + ix_ext_i : -1;
             /* start new alignment - starts with gap -> ILLEGAL! */
             /* nVal = dsm[GAP][qseq[i-1]][GAP][GAP]; */
 
@@ -195,14 +164,9 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
             */
             /* value for Iy matrix, case target paired to gap (k=2) */
             /*coming from match, add (Xi, -; Yj-1, Yj) */
-            mVal =
-                M[i][j - 1] != 0
-                    ? M[i][j - 1] + dsm[query_seq[i - 1]][GAP][target_seq[j - 2]][target_seq[j - 1]]
-                    : -1;
+            mVal = M[i][j - 1] != 0 ? M[i][j - 1] + t.iy_from_m : -1;
             /*extend existing gap, add (-, -; Yj-1, Yj) */
-            yVal = Iy[i][j - 1] != 0
-                       ? Iy[i][j - 1] + dsm[GAP][GAP][target_seq[j - 2]][target_seq[j - 1]]
-                       : -1;
+            yVal = Iy[i][j - 1] != 0 ? Iy[i][j - 1] + profile.iy_extend(combo) : -1;
             /* start new alignment - starts with gap LEGAL!? */
             /* nVal = dsm[GAP][GAP][GAP][tseq[j-1]]; */
 
@@ -216,16 +180,6 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
             */
         }
     }
-#ifdef VERBOSE
-    printf("found maxval %d on pos %d/%d in mat %d\n", running_max.score, running_max.pos_i, running_max.pos_j,
-           maxk); /* pos are 1-based */
-    printf("print F[0] matrix:\n");
-    printMat(M, m + 1, n + 1, query_seq, target_seq);
-    printf("print F[1] matrix:\n");
-    printMat(Ix, m + 1, n + 1, query_seq, target_seq);
-    printf("print F[2] matrix:\n");
-    printMat(Iy, m + 1, n + 1, query_seq, target_seq);
-#endif
 
     /*backtrack*/
     auto tmp = (int)(1.5 * config->tblen);
@@ -247,35 +201,16 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
             /*alt: stop here / reallocate? prevent creation of longer alignments in first place? */
             break;
         }
-#ifdef DEBUG
-#if VERBOSE > 1
-        fprintf(stderr, "in backtrack step with i=%d, j=%d, k=%d\n", i, j, k);
-#endif
-#endif
+
 
         /*l++ in end of while instead of every sub? */
 
         /* find which cell gave score */
         if (k == 0) {
             /* highest score in M matrix, having a match! */
-#ifdef DEBUG
-#if VERBOSE > 1
-            /*printf("check next if M[i][j] (%d) ==  M[i-1][j-1] (%d) +
-             * dsm[qseq[i-2]][qseq[i-1]][tseq[j-2]][tseq[j-1]] (%d) \n", M[i][j], M[i-1][j-1],
-             * dsm[qseq[i-2]][qseq[i-1]][tseq[j-2]][tseq[j-1]] );  //this line will segfault when at
-             * i=1 OR j=1 */
-            printf("check next if M[i][j] (%d) \n", M[i][j]);
-            printf(" == dsm[GAP][qseq[i-1]][GAP][tseq[j-1]] (%d)\n",
-                   dsm[GAP][query_seq[i - 1]][GAP][target_seq[j - 1]]);
-#endif
-#endif
+
             if (M[i][j] == dsm[GAP][query_seq[i - 1]][GAP][target_seq[j - 1]]) {
                 /*      started new alignment */
-#ifdef DEBUG
-#if VERBOSE > 1
-                printf("means we started alignment at M[%d][%d] \n", i, j);
-#endif
-#endif
                 k = 3;
                 /* need to print here already OR later check k and break */
                 hit->ali_seq1[l] = index2nt(query_seq[--i]);
@@ -296,15 +231,6 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
                 /* access is save here as matrix always build from subset only, so we need to come
                  * to an end with check before!? */
                 /*      previous was also match */
-#ifdef DEBUG
-#if VERBOSE > 1
-                printf("Not the case, so check if it's \n");
-                printf(" ==  M[i-1][j-1] (%d)\n", M[i - 1][j - 1]);
-                printf(
-                    " + dsm[qseq[i-2]][qseq[i-1]][tseq[j-2]][tseq[j-1]] (%d) \n",
-                    dsm[query_seq[i - 2]][query_seq[i - 1]][target_seq[j - 2]][target_seq[j - 1]]);
-#endif
-#endif
                 k = 0;
             } else if (M[i][j] ==
                        Ix[i - 1][j - 1] +
@@ -332,12 +258,7 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
                 hit->ali_ia[l] = ' ';
             }
             l++;
-#ifdef DEBUG
-#if VERBOSE > 1
-            printf("print pos %d / %d = %c/ %c\n", i, j, hit->ali_seq1[l - 1],
-                   hit->ali_seq2[l - 1]);
-#endif
-#endif
+
         } else if (k == 1) {
             /* seq1(query) paired to a gap (in target) */
             if (Ix[i][j] ==
@@ -410,4 +331,3 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
       printf("no of nucls in ia: %d + %d = %d\n", maxi-i , maxj-j, maxi-i + maxj-j);
     */
 }
-

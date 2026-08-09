@@ -1,18 +1,19 @@
 #pragma once
 
+#include "math/Matrix.h"
 #include "RunningMax.h"
-
+#include "align/optimization/QueryProfile.h"
 
 #include <cstdio>
 #include <climits>
 
-#include "matrix_operations.h"
 #include "force_start.h"
 #include "nucleotide.h"
 
 #include "operations.h"
 #include "traceback.h"
 #include "memory/MallocRAII.hpp"
+#include "optimization/RowTerms.h"
 
 
 static void
@@ -57,6 +58,9 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
     int* const Ix[2] = {dp_rows.get() + 2 * (m + 1), dp_rows.get() + 3 * (m + 1)};
     int* const Iy[2] = {dp_rows.get() + 4 * (m + 1), dp_rows.get() + 5 * (m + 1)};
 
+
+    const QueryProfile profile(query_sequence, m, dsm);
+    const int* ix_extend = profile.ix_extend();
 
     M[0][0] = Ix[0][0] = Iy[0][0] = 0;
 
@@ -138,13 +142,17 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
         const auto target_current = target_sequence[n - j];
         const auto target_prev = target_sequence[n - j + 1];
 
+        /* DSM caching optimization */
+        const auto context = QueryProfile::context(target_prev, target_current);
+        const RowTerms* T = profile.row(context);
+        const auto iy_ext = profile.iy_extend(context);
+        /* DSM caching optimization */
+
 
         /* Column 1 is the query's first nt, nothing can precede it */
-        const auto open_score_1 = dsm[GAP][query_sequence[0]][GAP][target_current];
-        const auto close_score_1 = dsm[query_sequence[0]][GAP][target_current][GAP];
-        M[currentRow][1] = MAX(0, open_score_1);
+        M[currentRow][1] = MAX(0, T[1].m_open);
 
-        running_row_max.set(M[currentRow][1] + close_score_1, 1);
+        running_row_max.set(M[currentRow][1] + T[1].close, 1);
 
         // Ix bulges a query nt, impossible in 1st nucleotide
         Ix[currentRow][1] = NEGINF;
@@ -153,54 +161,45 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
         // Only M can win row max, so we don't take this as a candidate
         Iy[currentRow][1] = MAX(
             // We are now opening the bulge
-            M[lastRow][1] + dsm[query_sequence[0]][GAP][target_prev][target_current],
+            M[lastRow][1] + T[1].iy_from_m,
             // We are extending a bulge
-            Iy[lastRow][1] + dsm[GAP][GAP][target_prev][target_current]);
+            Iy[lastRow][1] + iy_ext);
 
         /* finished init of i=1 col */
 
+
+
         for (auto i = 2u; i <= m; i++) {
-            const auto q_prev = query_sequence[i - 2];
-            const auto q_cur = query_sequence[i - 1];
-
-            const auto open_score_i = dsm[GAP][q_cur][GAP][target_current];
-            const auto close_score_i = dsm[q_cur][GAP][target_current][GAP];
-
             M[currentRow][i] = max4(
                 /* coming from a match */
-                M[lastRow][i - 1] != 0
-                    ? M[lastRow][i - 1] +
-                          dsm[q_prev][q_cur][target_sequence[n - j + 1]][target_sequence[n - j]]
-                    : -1,
+                M[lastRow][i - 1] != 0 ? M[lastRow][i - 1] + T[i].m_from_m : -1,
                 /* coming from gap in target */
-                Ix[lastRow][i - 1] + dsm[q_prev][q_cur][GAP][target_current],
+                Ix[lastRow][i - 1] + T[i].m_from_ix,
                 /* coming from gap in query */
-                Iy[lastRow][i - 1] + dsm[GAP][q_cur][target_prev][target_current],
+                Iy[lastRow][i - 1] + T[i].m_from_iy,
                 /* start fresh */
-                open_score_i);
+                T[i].m_open);
 
             /* Set the best alignment ending in position i for row j*/
-            running_row_max.set_if_better(M[currentRow][i] + close_score_i, i);
+            running_row_max.set_if_better(M[currentRow][i] + T[i].close, i);
 
             /**
              * Ix: query nt against a gap
              */
             Ix[currentRow][i] = MAX(
                 // pair at i - 1, now bulge
-                M[currentRow][i - 1] + dsm[q_prev][q_cur][target_current][GAP],
+                M[currentRow][i - 1] + T[i].ix_from_m,
                 // already bulging, add one more
-                Ix[currentRow][i - 1] + dsm[q_prev][q_cur][GAP][GAP]
-            );
+                Ix[currentRow][i - 1] + ix_extend[i]);
 
             /**
              * Iy: target nt against a gap
              */
             Iy[currentRow][i] = MAX(
                 // pair at previous row, now bulge
-                M[lastRow][i] + dsm[q_cur][GAP][target_prev][target_current],
+                M[lastRow][i] + T[i].iy_from_m,
                 // already bulging, add one more
-                Iy[lastRow][i] + dsm[GAP][GAP][target_prev][target_current]
-            );
+                Iy[lastRow][i] + iy_ext);
         }
 
         hs[j - 1] = running_row_max.score;
@@ -252,7 +251,7 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
          be added.*/
 
         RIs(tmpQseq.get(), tmpTseq.get(), tmpQlen, tmpTlen, dsm, &maxHit, config, M_RI, Ix_RI,
-            Iy_RI);
+            Iy_RI, profile, tmpQbeg - 1);
 
         /*number of nt in ia to recalc Score2fakE - only tmp no need to store... */
         const auto energy =
@@ -347,7 +346,7 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
             }
 
             RIs(tmpQseq.get(), tmpTseq.get(), tmpQlen, tmpTlen, dsm, &maxHit, config, M_RI, Ix_RI,
-                Iy_RI);
+                Iy_RI, profile,  tmpQbeg - 1);
 
             /*number of nt in ia to recalc Score2fakE - only tmp no need to store... */
             const auto energy =

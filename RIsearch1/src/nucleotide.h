@@ -6,6 +6,8 @@
 
 #include <cstdint>
 
+#define GAP 5 /* position of '-' in alphabet, not as define if read from matrix... */
+
 #define NEGINF INT_MIN / 2
 
 [[maybe_unused]] static unsigned char nt2index(char nt)

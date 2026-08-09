@@ -15,7 +15,6 @@
 #include "operations.h"
 #include "memory/MallocRAII.hpp"
 
-#define GAP 5 /* position of '-' in alphabet, not as define if read from matrix... */
 
 
 
