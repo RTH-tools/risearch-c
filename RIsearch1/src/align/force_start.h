@@ -9,7 +9,7 @@
 #include "nucleotide.h"
 
 #include "InteractionAlignment.h"
-#include "alignment.h"
+#include "symbols.h"
 #include "energy.hpp"
 #include "matrix_operations.h"
 #include "operations.h"
@@ -29,7 +29,7 @@ static void fill_char_array(char* buf, std::uint32_t length)
 
 
 static float find_max_value_f(float** M, float** Ix, float** Iy, int* k, int* i, int j, int n,
-                              short dsm[6][6][6][6], unsigned char* qseq, unsigned char* tseq)
+                              const short dsm[6][6][6][6], unsigned char* qseq, unsigned char* tseq)
 {
     float max = 0.0;
     *i = 0; /*row in which maxval is found */
@@ -59,22 +59,22 @@ RIs_force_start_end_weighted(int force_start_val,
                              int m,                 /* query seq length */
                              int n,                 /* target seq length */
                              float* weights,        /*array of weights */
-                             short dsm[6][6][6][6], /* scoring matrix */
+                             const short dsm[6][6][6][6], /* scoring matrix */
                              [[maybe_unused]] IA*,               /* pointer to struct, fill results */
                              const char* matname)
 {
     const auto reference = reference_from_matrix(matname);
 
-    float **M, **Ix, **Iy; /* matrices for alignment scores ending in different states */
     int i, j, k, colj;
     float w1, w2;
     int startpos_found;     /* used in backtrack, true if start pos has been reached */
     float mVal, xVal, yVal; /* values coming from M, Ix, Iy. Not possible to start a new alignment
                                at any position, due to the force start. */
 
-    M = allocFloatMatrix(m + 1, n + 1);  /* (Mis)Match */
-    Ix = allocFloatMatrix(m + 1, n + 1); /* Insertion in x(=query), so x paired to gap (in y) */
-    Iy = allocFloatMatrix(m + 1, n + 1); /* Insertion(=bulge) in y(=target) */
+    /* matrices for alignment scores ending in different states */
+    float** M = allocFloatMatrix(m + 1, n + 1);  /* (Mis)Match */
+    float ** Ix = allocFloatMatrix(m + 1, n + 1); /* Insertion in x(=query), so x paired to gap (in y) */
+    float ** Iy = allocFloatMatrix(m + 1, n + 1); /* Insertion(=bulge) in y(=target) */
 
     Ix[0][0] = Iy[0][0] = 0;
     M[0][0] = force_start_val;
@@ -329,7 +329,7 @@ RIs_force_start_end_weighted(int force_start_val,
                         /*printf("Gap in Ix coming from gap %f\n", Ix[i][j]); */
                     } else {
                         fprintf(stderr, "ERR: unexpected case in k=1 : %f in row %d and col %d\n",
-                                Ix[i][j], i, j);
+                                static_cast<double>(Ix[i][j]), i, j);
                         exit(1);
                     }
                 }
@@ -360,7 +360,7 @@ RIs_force_start_end_weighted(int force_start_val,
                             k = 2; /* extend existing gap */
                         }
                     } else {
-                        fprintf(stderr, "unexpected case in k=2 : %f\n", Iy[i][j]);
+                        fprintf(stderr, "unexpected case in k=2 : %f\n", static_cast<double>(Iy[i][j]));
                         exit(1);
                     }
                 }
@@ -399,18 +399,13 @@ RIs_force_start_end_init(int force_start_val, const char* pos_weights,
                          unsigned char* tseqIx, /* target sequence  */
                          std::uint32_t len_seq1,          /* query seq length */
                          std::uint32_t len_seq2,          /* target seq length */
-                         short dsm[6][6][6][6], /* scoring matrix */
+                         const short dsm[6][6][6][6], /* scoring matrix */
                          const char* matname    /* name of the scoring matrix */
 )
 {
-    int testmax;
-
-    IA maxHit;
+    auto testmax = (int)(1.5 * len_seq2);
+    IA maxHit(testmax);
     MallocRAII<unsigned char> tmp(len_seq2);
-    testmax = (int)(1.5 * len_seq2);
-    maxHit.ali_seq1 = MallocRAII<char>(testmax);
-    maxHit.ali_seq2 = MallocRAII<char>(testmax);
-    maxHit.ali_ia = MallocRAII<char>(testmax);
 
     /*reverting seq2 (target) */
     for (auto i = 0u; i < len_seq2; i++) {

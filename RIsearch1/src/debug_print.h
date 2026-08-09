@@ -32,7 +32,7 @@
     for (i = 0; i < rows; i++) {
         printf("\n%c", (i == 0 ? '-' : index2nt(*(seq1 + i - 1))));
         for (j = 0; j < cols; j++) {
-            printf("\t%f", (mat[i][j] == NEGINF ? -8 : mat[i][j])); /* -8 as dummy for -inf */
+            printf("\t%f", static_cast<double>(mat[i][j] == NEGINF ? -8 : mat[i][j])); /* -8 as dummy for -inf */
         }
     }
     printf("\n\n");

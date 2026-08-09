@@ -21,33 +21,49 @@
 
 ***********************************************************/
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
+#include <cstdint>
 #include <unistd.h>
 
 
 #include "nucleotide.h"
 #include "dsm.h"
 #include "cli.h"
-#include "force_start.h"
-#include "linspace.h"
 
 #include "memory/MallocRAII.hpp"
 #include "FastaRAII.h"
 #include "FastaRecord.h"
+#include "align/dispatch.h"
 
-/* values filled in by getArgs from the command line */
-static config_st config;
+
+static bool encode_sequence(const char* seq, std::uint32_t& len, unsigned char* ix,
+                            const char* name, const char* which)
+{
+    const int check = seq2ix(len, seq, ix, name, which);
+    if (check < 0) {
+        return false;
+    }
+    if (check > 0) {
+        len -= check;
+    }
+    return true;
+}
+
 
 int main(int argc, char* argv[])
 {
+    /* values filled in by getArgs from the command line */
+    static config_st config;
+
+
     short dsm[6][6][6][6];
-    int check;
-    int count_q = 0, count_t = 0;
 
     getArgs(argc, argv, &config);
+    if (uses_force_start(config)) {
+        validate_force_start_config(config);
+    }
 
     getMat(config.mat_name, &dsm[0][0][0][0], config.extension_penalty,
            config.transpose_matrix_flag);
@@ -62,18 +78,16 @@ int main(int argc, char* argv[])
         }
         FastaRecord target_record;
 
+        int target_count = 0;
         while (target_record.read(target_fasta.handle())) {
             auto len_seq2 = target_record.get_size();
-            count_q = 0;
-            count_t++;
+            target_count++;
             MallocRAII<unsigned char> tseqIx(len_seq2);
             /*can be done already when reading in first place */
-            check = seq2ix(len_seq2, target_record.get_sequence(), tseqIx.get(),
-                           target_record.get_name(), "target");
-            if (check > 0)
-                len_seq2 -= check; /*removed gap characters */
-            if (check < 0)
-                continue; /*non-alpha char in input */
+            if (!encode_sequence(target_record.get_sequence(), len_seq2, tseqIx.get(),
+                                 target_record.get_name(), "target")) {
+                continue; // non-alpha char in input
+            }
 
             if (config.seq1_file_name) {
                 /* query given as file */
@@ -83,106 +97,61 @@ int main(int argc, char* argv[])
                     return -1;
                 }
                 FastaRecord query_record;
+                auto query_count = 0;
                 while (query_record.read(query_fasta.handle())) {
-                    count_q++;
+                    query_count++;
                     auto len_seq1 = query_record.get_size();
                     MallocRAII<unsigned char> qseqIx(len_seq1);
 
-                    check = seq2ix(len_seq1, query_record.get_sequence(), qseqIx.get(),
-                                   query_record.get_name(), "query");
-                    if (check > 0)
-                        len_seq1 -= check; /*removed gap characters */
-                    if (check < 0)
-                        continue; /*non-alpha char in input */
-                    if (config.printShort < 2 && (config.all_vs_all || count_t == count_q))
-                        printf("\n\nquery %d: %s (%u nts) vs. target %d: %s (%u nts)\n\n",
-                               count_q, query_record.get_name(), len_seq1, count_t,
-                               target_record.get_name(), len_seq2);
-                    if (config.weighted_positions || (config.force_start_val >= 0)) {
-                        if (config.force_start_val < 0) {
-                            fprintf(stderr, "Parameter -f must be set when using weights (-w).\n");
-                            exit(1);
-                        }
-                        if (!config.weighted_positions) {
-                            fprintf(stderr,
-                                    "Parameter -w must be set when using force start (-f). Use "
-                                    "array of weights \"noweigths\" to avoid this error.\n");
-                            exit(1);
-                        }
-                        if (config.extension_penalty || config.tblen != 40 || config.doSubopt ||
-                            config.filter_e || config.printShort || config.vicinity) {
-                            fprintf(stderr, "Options -d -s -n -l -e -p are not available in "
-                                            "combination with options -f -w \n");
-                            exit(1);
-                        }
-                        if (config.all_vs_all || count_t == count_q) {
-                            RIs_force_start_end_init(config.force_start_val, config.pos_weights,
-                                                     qseqIx.get(), tseqIx.get(), len_seq1, len_seq2,
-                                                     dsm, config.mat_name);
-                        }
-                    } else {
-                        if (config.all_vs_all || count_t == count_q) {
-                            RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
-                                         config.extension_penalty, config.min_score,
-                                         query_record.get_name(), target_record.get_name(),
-                                         config.mat_name, &config);
-                        }
+                    if (!encode_sequence(query_record.get_sequence(), len_seq1, qseqIx.get(),
+                                         query_record.get_name(), "query")) {
+                        continue; // non-alpha char in input
                     }
+
+                    if (!config.all_vs_all && target_count != query_count) {
+                        continue;
+                    }
+
+                    if (config.printShort < 2)
+                        printf("\n\nquery %d: %s (%u nts) vs. target %d: %s (%u nts)\n\n",
+                               query_count, query_record.get_name(), len_seq1, target_count,
+                               target_record.get_name(), len_seq2);
+
+                    run_alignment(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
+                                  query_record.get_name(), target_record.get_name(), config);
                 }
             } else if (config.seq1_cli) {
                 /* query given as command line parameter */
-                auto len_seq1 = strlen(config.seq1_cli);
+                std::uint32_t len_seq1 = strlen(config.seq1_cli);
                 MallocRAII<unsigned char> qseqIx(len_seq1);
-                check =
-                    seq2ix(len_seq1, config.seq1_cli, qseqIx.get(), "from command line", "query");
-                if (check > 0)
-                    len_seq1 -= check; /*removed gap characters */
-                if (check < 0)
+
+                if (!encode_sequence(config.seq1_cli, len_seq1, qseqIx.get(), "from command line",
+                                     "query")) {
                     return -1; /*non-alpha char in input -- break would loop through all query seqs,
-                                  no use */
-                if (config.printShort < 2)
-                    printf("\n\nquery from_cli (%lu nts) vs. target %s (%u nts)\n\n", len_seq1,
-                           target_record.get_name(), len_seq2);
-                if (config.weighted_positions || (config.force_start_val >= 0)) {
-                    if (config.force_start_val < 0) {
-                        fprintf(stderr, "Parameter -f must be set when using weights (-w).\n");
-                        exit(1);
-                    }
-                    if (!config.weighted_positions) {
-                        fprintf(stderr, "Parameter -w must be set when using force start (-f). Use "
-                                        "array of weights \"noweigths\" to avoid this error.\n");
-                        exit(1);
-                    }
-                    if (config.extension_penalty || config.tblen != 40 || config.doSubopt ||
-                        config.filter_e || config.printShort || config.vicinity) {
-                        fprintf(stderr, "Options -d -s -n -l -e -p are not available in "
-                                        "combination with options -f -w \n");
-                        exit(1);
-                    }
-                    RIs_force_start_end_init(config.force_start_val, config.pos_weights,
-                                             qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
-                                             config.mat_name);
-                } else {
-                    RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
-                                 config.extension_penalty, config.min_score, "from_cli", target_record.get_name(),
-                                 config.mat_name, &config);
+                                   no use */
                 }
+
+                if (config.printShort < 2)
+                    printf("\n\nquery from_cli (%u nts) vs. target %s (%u nts)\n\n", len_seq1,
+                           target_record.get_name(), len_seq2);
+
+                run_alignment(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm, "from_cli",
+                              target_record.get_name(), config);
+
             } else {
                 fprintf(stderr, "No query seq given!");
                 /* is caught in getArg already -- alternative run seq against itself!? */
             }
-
         }
     } else if (config.seq2_cli) {
         /*target given as command line parameter */
         std::uint32_t len_seq2 = strlen(config.seq2_cli);
         MallocRAII<unsigned char> tseqIx(len_seq2);
 
-        check = seq2ix(len_seq2, config.seq2_cli, tseqIx.get(), "from command line", "target");
-        if (check > 0)
-            len_seq2 -= check; /*removed gap characters */
-        if (check < 0)
+        if (!encode_sequence(config.seq2_cli, len_seq2, tseqIx.get(), "from command line",
+                             "target")) {
             return -1; /*non-alpha char in input */
+        }
 
         if (config.seq1_file_name) {
             /* query given as file */
@@ -195,41 +164,20 @@ int main(int argc, char* argv[])
             FastaRecord query_record;
             while (query_record.read(query_fasta.handle())) {
                 auto len_seq1 = query_record.get_size();
-                MallocRAII<unsigned char>  qseqIx(len_seq1);
+                MallocRAII<unsigned char> qseqIx(len_seq1);
 
-                check = seq2ix(len_seq1, query_record.get_sequence(), qseqIx.get(), query_record.get_name(), "query");
-                if (check > 0)
-                    len_seq1 -= check; /*removed gap characters */
-                if (check < 0)
+                if (!encode_sequence(query_record.get_sequence(), len_seq1, qseqIx.get(),
+                                     query_record.get_name(), "query")) {
                     continue; /*non-alpha char in input */
-
-                if (config.printShort < 2)
-                    printf("\n\nquery %s (%u nts) vs. target from_cli (%u nts)\n\n", query_record.get_name(),
-                           len_seq1, len_seq2);
-                if (config.weighted_positions || (config.force_start_val >= 0)) {
-                    if (config.force_start_val < 0) {
-                        fprintf(stderr, "Parameter -f must be set when using weights (-w).\n");
-                        exit(1);
-                    }
-                    if (!config.weighted_positions) {
-                        fprintf(stderr, "Parameter -w must be set when using force start (-f). Use "
-                                        "array of weights \"noweigths\" to avoid this error.\n");
-                        exit(1);
-                    }
-                    if (config.extension_penalty || config.tblen != 40 || config.doSubopt ||
-                        config.filter_e || config.printShort || config.vicinity) {
-                        fprintf(stderr, "Options -d -s -n -l -e -p are not available in "
-                                        "combination with options -f -w \n");
-                        exit(1);
-                    }
-                    RIs_force_start_end_init(config.force_start_val, config.pos_weights,
-                                             qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
-                                             config.mat_name);
-                } else {
-                    RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
-                                 config.extension_penalty, config.min_score, query_record.get_name(), "from_cli",
-                                 config.mat_name, &config);
                 }
+
+                if (config.printShort < 2) {
+                    printf("\n\nquery %s (%u nts) vs. target from_cli (%u nts)\n\n",
+                           query_record.get_name(), len_seq1, len_seq2);
+                }
+
+                run_alignment(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
+                              query_record.get_name(), "from_cli", config);
             }
         } else if (config.seq1_cli) {
             /* query given as command line parameter */
@@ -237,37 +185,17 @@ int main(int argc, char* argv[])
             std::uint32_t len_seq1 = strlen(config.seq1_cli);
             MallocRAII<unsigned char> qseqIx(len_seq1);
 
-            check = seq2ix(len_seq1, config.seq1_cli, qseqIx.get(), "from command line", "query");
-            if (check > 0)
-                len_seq1 -= check; /*removed gap characters */
-            if (check < 0)
+            if (!encode_sequence(config.seq1_cli, len_seq1, qseqIx.get(), "from command line",
+                                 "query")) {
                 return -1; /* non-alpha char in input -- break would loop through queries, no use */
+            }
+
             if (config.printShort < 2)
                 printf("\n\nquery from_cli (%u nts) vs. target from_cli (%u nts)\n\n", len_seq1,
                        len_seq2);
-            if (config.weighted_positions || (config.force_start_val >= 0)) {
-                if (config.force_start_val < 0) {
-                    fprintf(stderr, "Parameter -f must be set when using weights (-w).\n");
-                    exit(1);
-                }
-                if (!config.weighted_positions) {
-                    fprintf(stderr, "Parameter -w must be set when using force start (-f). Use "
-                                    "array of weights \"noweigths\" to avoid this error.\n");
-                    exit(1);
-                }
-                if (config.extension_penalty || config.tblen != 40 || config.doSubopt ||
-                    config.filter_e || config.printShort || config.vicinity) {
-                    fprintf(stderr, "Options -d -s -n -l -e -p are not available in combination "
-                                    "with options -f -w \n");
-                    exit(1);
-                }
-                RIs_force_start_end_init(config.force_start_val, config.pos_weights, qseqIx.get(),
-                                         tseqIx.get(), len_seq1, len_seq2, dsm, config.mat_name);
-            } else {
-                RIs_linSpace(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
-                             config.extension_penalty, config.min_score, "from_cli", "from_cli",
-                             config.mat_name, &config);
-            }
+
+            run_alignment(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm, "from_cli",
+                          "from_cli", config);
         } else {
             fprintf(stderr, "No query seq given!");
             /* is caught in getArg already -- alternative run seq against itself!? */

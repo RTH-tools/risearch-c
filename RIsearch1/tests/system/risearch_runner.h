@@ -11,7 +11,6 @@
 #include <string>
 #include <vector>
 
-#include <unistd.h> // optind
 
 // risearch.cpp is compiled as C++ with main renamed, so this has C++ linkage.
 int risearch1_main(int argc, char* argv[]);

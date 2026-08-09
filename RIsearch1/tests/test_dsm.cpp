@@ -6,8 +6,8 @@
 #include "dsm.h"
 
 // The raw tables in dsm.c, before any penalty is applied.
-extern short dsm_su95_rev_woGU_pos[6][6][6][6];
-extern short dsm_extend[6][6][6][6];
+extern const short dsm_su95_rev_woGU_pos[6][6][6][6];
+extern const short dsm_extend[6][6][6][6];
 
 TEST(Dsm, WithoutPenaltyReproducesTheRawTable)
 {
@@ -16,7 +16,7 @@ TEST(Dsm, WithoutPenaltyReproducesTheRawTable)
     const int transpose_matrix = 0;
     char name[] = "su95_noGU";
 
-    ASSERT_EQ(getMat(name, &out[0][0][0][0], extPen, transpose_matrix), 0);
+    getMat(name, &out[0][0][0][0], extPen, transpose_matrix);
 
     EXPECT_EQ(out[0][1][2][3], dsm_su95_rev_woGU_pos[0][1][2][3]);
     EXPECT_EQ(out[3][3][0][0], dsm_su95_rev_woGU_pos[3][3][0][0]);
@@ -30,7 +30,7 @@ TEST(Dsm, SubtractsThePenaltyTimesTheExtensionTable)
     const int extPen = 30;
     const int transpose_matrix = 0;
 
-    ASSERT_EQ(getMat(name, &out[0][0][0][0], extPen, transpose_matrix), 0);
+    getMat(name, &out[0][0][0][0], extPen, transpose_matrix);
 
     EXPECT_EQ(out[0][1][2][3], dsm_su95_rev_woGU_pos[0][1][2][3] - 30 * dsm_extend[0][1][2][3]);
     EXPECT_EQ(out[3][3][0][0], dsm_su95_rev_woGU_pos[3][3][0][0] - 30 * dsm_extend[3][3][0][0]);
@@ -45,7 +45,7 @@ TEST(Dsm, TransposeSwapsTheQueryAndTargetHalvesOfTheIndex)
     const int transpose_matrix = 1;
     char name[] = "su95_noGU";
 
-    ASSERT_EQ(getMat(name, &out[0][0][0][0], extPen, transpose_matrix), 0);
+    ASSERT_NO_THROW(getMat(name, &out[0][0][0][0], extPen, transpose_matrix));
 
     EXPECT_EQ(out[2][3][0][1], dsm_su95_rev_woGU_pos[0][1][2][3]);
     EXPECT_EQ(out[0][0][3][3], dsm_su95_rev_woGU_pos[3][3][0][0]);
@@ -63,9 +63,9 @@ TEST(Dsm, LoadsEveryDocumentedMatrixName)
     char su95_noGU[] = "su95_noGU";
     char slh04_noGU[] = "slh04_noGU";
 
-    EXPECT_EQ(getMat(t04, &out[0][0][0][0], extPen, transpose_matrix), 0);
-    EXPECT_EQ(getMat(t99, &out[0][0][0][0], extPen, transpose_matrix), 0);
-    EXPECT_EQ(getMat(su95, &out[0][0][0][0], extPen, transpose_matrix), 0);
-    EXPECT_EQ(getMat(su95_noGU, &out[0][0][0][0], extPen, transpose_matrix), 0);
-    EXPECT_EQ(getMat(slh04_noGU, &out[0][0][0][0], extPen, transpose_matrix), 0);
+    ASSERT_NO_THROW(getMat(t04, &out[0][0][0][0], extPen, transpose_matrix));
+    ASSERT_NO_THROW(getMat(t99, &out[0][0][0][0], extPen, transpose_matrix));
+    ASSERT_NO_THROW(getMat(su95, &out[0][0][0][0], extPen, transpose_matrix));
+    ASSERT_NO_THROW(getMat(su95_noGU, &out[0][0][0][0], extPen, transpose_matrix));
+    ASSERT_NO_THROW(getMat(slh04_noGU, &out[0][0][0][0], extPen, transpose_matrix));
 }

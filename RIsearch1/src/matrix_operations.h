@@ -6,54 +6,46 @@
 
 static int** allocIntMatrix(std::uint32_t rows, std::uint32_t cols)
 {
-    /* function to allocate an Integer Matrix of size rows x cols */
-    int** m = reinterpret_cast<int**>(malloc(rows * sizeof(int*)));
+    const auto pointer_bytes = static_cast<std::size_t>(rows) * sizeof(int*);
+    const auto data_bytes = static_cast<std::size_t>(rows) * cols * sizeof(int);
 
+    int** m = reinterpret_cast<int**>(malloc(pointer_bytes + data_bytes));
     if (!m) {
-        printf("Cannot allocate integer matrix with %d rows\n", rows);
+        printf("Cannot allocate integer matrix with %u rows and %u cols\n", rows, cols);
         exit(1);
     }
 
+    int* data = reinterpret_cast<int*>(m + rows);
     for (auto i = 0u; i < rows; i++) {
-        m[i] = reinterpret_cast<int*>(malloc(cols * sizeof(int)));
-        if (!m[i]) {
-            printf("Cannot allocate column %d of matrix with %d rows and %d cols\n", i, rows, cols);
-            exit(1);
-        }
+        m[i] = data + static_cast<std::size_t>(i) * cols;
     }
     return m;
 }
 
 static float** allocFloatMatrix(std::uint32_t rows, std::uint32_t cols)
 {
-    /* function to allocate an Integer Matrix of size rows x cols */
-    float** m = reinterpret_cast<float**>(malloc(rows * sizeof(float*)));
+    const auto pointer_bytes = static_cast<std::size_t>(rows) * sizeof(float*);
+    const auto data_bytes = static_cast<std::size_t>(rows) * cols * sizeof(float);
 
+    float** m = reinterpret_cast<float**>(malloc(pointer_bytes + data_bytes));
     if (!m) {
-        printf("Cannot allocate integer matrix with %d rows\n", rows);
+        printf("Cannot allocate float matrix with %u rows and %u cols\n", rows, cols);
         exit(1);
     }
 
+    float* data = reinterpret_cast<float*>(m + rows);
     for (auto i = 0u; i < rows; i++) {
-        m[i] = reinterpret_cast<float*>(malloc(cols * sizeof(float)));
-        if (!m[i]) {
-            printf("Cannot allocate column %d of matrix with %d rows and %d cols\n", i, rows, cols);
-            exit(1);
-        }
+        m[i] = data + static_cast<std::size_t>(i) * cols;
     }
     return m;
 }
 
-static void freeIntMatrix(int** m, std::uint32_t rows)
+static void freeIntMatrix(int** m, std::uint32_t)
 {
-    while (rows--)
-        free((char*)(m[rows]));
-    free((char*)(m));
+    free(m);
 }
 
-static void freeFloatMatrix(float** m, std::uint32_t rows)
+static void freeFloatMatrix(float** m, std::uint32_t)
 {
-    while (rows--)
-        free((char*)(m[rows]));
-    free((char*)(m));
+    free(m);
 }

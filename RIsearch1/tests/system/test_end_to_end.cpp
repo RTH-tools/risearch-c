@@ -8,18 +8,10 @@
 #include <string>
 
 #include "risearch_runner.h"
+#include "base_args.h"
 
 
 namespace {
-
-const char* kQuery = RISEARCH_TEST_DATA "/query.fa";
-const char* kTarget = RISEARCH_TEST_DATA "/target.fa";
-
-std::vector<std::string> BaseArgs(const char* min_score)
-{
-    return {"-q", kQuery, "-t",        kTarget, "-s", min_score, "-d",
-            "30", "-m",   "su95_noGU", "-n",    "0",  "-R",      "-p2"};
-}
 
 TEST(EndToEnd, ProducesTabSeparatedHits)
 {
@@ -84,5 +76,32 @@ TEST(EndToEnd, HitCountModeAgreesWithTheHitLines)
     }
     EXPECT_EQ(total, risearch_test::CountLines(risearch_test::Run(BaseArgs("400"))));
 }
+
+TEST(EndToEnd, ReportsAnUnreadableTargetFile)
+{
+    auto args = BaseArgs("400");
+    *std::find(args.begin(), args.end(), kTarget) = RISEARCH_TEST_DATA "/does_not_exist.fa";
+
+    testing::internal::CaptureStderr();
+    const std::string out = risearch_test::Run(args);
+    const std::string err = testing::internal::GetCapturedStderr();
+
+    EXPECT_TRUE(out.empty()) << "a run that could not open its target printed hits";
+    EXPECT_NE(err.find("is not readable"), std::string::npos) << err;
+}
+
+TEST(EndToEnd, ReportsAnUnreadableQueryFile)
+{
+    auto args = BaseArgs("400");
+    *std::find(args.begin(), args.end(), kQuery) = RISEARCH_TEST_DATA "/does_not_exist.fa";
+
+    testing::internal::CaptureStderr();
+    const std::string out = risearch_test::Run(args);
+    const std::string err = testing::internal::GetCapturedStderr();
+
+    EXPECT_TRUE(out.empty()) << "a run that could not open its target printed hits";
+    EXPECT_NE(err.find("is not readable"), std::string::npos) << err;
+}
+
 
 } // namespace

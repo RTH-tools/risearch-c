@@ -3,7 +3,7 @@
 
 #include <gtest/gtest.h>
 
-#include "alignment.h"
+#include "align/symbols.h"
 
 namespace {
 

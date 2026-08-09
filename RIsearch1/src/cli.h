@@ -1,12 +1,11 @@
 #pragma once
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 #include <unistd.h>
 
 #include <getopt.h>
-#include <limits.h>
+#include <climits>
 
 static void usage(const char* progname)
 {
@@ -65,7 +64,7 @@ static void usage(const char* progname)
 /* values to be overwritten by command line parameters */
 typedef struct config {
     int transpose_matrix_flag;
-    int extension_penalty;
+    short extension_penalty;
     int all_vs_all;
     const char* seq1_file_name;
     const char* seq2_file_name;
@@ -93,10 +92,10 @@ static void getArgs(int argc, char* argv[], config_st* config)
 {
     config->transpose_matrix_flag = 0;
     config->extension_penalty = 0; /* extension penalty; used to compute dsm */
-    config->seq1_file_name = NULL;
-    config->seq2_file_name = NULL;
-    config->seq1_cli = NULL;
-    config->seq2_cli = NULL;
+    config->seq1_file_name = nullptr;
+    config->seq2_file_name = nullptr;
+    config->seq1_cli = nullptr;
+    config->seq2_cli = nullptr;
     config->all_vs_all = 1; /* run all queries vs all targets */
     config->mat_name = DEFAULT_MAT_NAME;
     config->min_score = INT_MAX; /* score cutoff; if not set, only print best */
@@ -186,5 +185,32 @@ static void getArgs(int argc, char* argv[], config_st* config)
     if (config->seq1_file_name && (!strcmp(config->seq1_file_name, "-"))) {
         fprintf(stderr, "\nQuery can currently not be read from STDIN, only target can!\n\n");
         usage(argv[0]);
+    }
+}
+
+
+static bool uses_force_start(const config_st& config)
+{
+    return config.weighted_positions || config.force_start_val >= 0;
+}
+
+static void validate_force_start_config(const config_st& config)
+{
+    if (config.force_start_val < 0) {
+        fprintf(stderr, "Parameter -f must be set when using weights (-w).\n");
+        exit(1);
+    }
+
+    if (!config.weighted_positions) {
+        fprintf(stderr, "Parameter -w must be set when using force start (-f). Use "
+                        "array of weights \"noweigths\" to avoid this error.\n");
+        exit(1);
+    }
+
+    if (config.extension_penalty || config.tblen != 40 || config.doSubopt || config.filter_e ||
+        config.printShort || config.vicinity) {
+        fprintf(stderr, "Options -d -s -n -l -e -p are not available in combination "
+                        "with options -f -w \n");
+        exit(1);
     }
 }

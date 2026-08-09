@@ -4,7 +4,7 @@
 
 class MatrixInt {
 public:
-    MatrixInt(int rows, int cols);
+    MatrixInt(std::uint32_t rows, std::uint32_t cols);
     ~MatrixInt();
     [[nodiscard]] int** get() const;
 
@@ -16,7 +16,7 @@ private:
 
 class MatrixFloat {
 public:
-    MatrixFloat(int rows, int cols);
+    MatrixFloat(std::uint32_t rows, std::uint32_t cols);
     ~MatrixFloat();
     [[nodiscard]] float** get() const;
 
