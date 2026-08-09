@@ -10,6 +10,8 @@
 #include "risearch_runner.h"
 #include "base_args.h"
 
+#include <climits>
+
 
 namespace {
 
@@ -142,5 +144,46 @@ TEST(EndToEnd, ReportsAnUnreadableQueryFile)
     EXPECT_NE(err.find("is not readable"), std::string::npos) << err;
 }
 
+// -p2 is: query, qbeg, qend, target, tbeg, tend, score, energy
+int ScoreField(const std::string& p2_line)
+{
+    size_t pos = 0;
+    for (int field = 0; field < 6; ++field) {
+        pos = p2_line.find('\t', pos);
+        if (pos == std::string::npos)
+            return INT_MIN;
+        ++pos;
+    }
+    return std::atoi(p2_line.c_str() + pos);
+}
 
+std::vector<std::string> DuplexArgs(const char* query, const char* target)
+{
+    return {"-Q", query, "-T", target, "-m", "su95_noGU", "-d", "30", "-p2"};
+}
+
+
+TEST(BulgeScoring, ScoresAFullyPairedDuplex)
+{
+    // Control: no bulge, so this passes even with both bulge terms wrong.
+    const std::string out =
+        risearch_test::Run(DuplexArgs("ACGUACGUAAACCCGGGUUU", "AAACCCGGGUUUACGUACGU"));
+    EXPECT_EQ(ScoreField(out), 1909) << out;
+}
+
+TEST(BulgeScoring, ScoresABulgeInTheTarget)
+{
+    // The target carries one extra nt, so the best alignment must pass Iy -> M.
+    const std::string out =
+        risearch_test::Run(DuplexArgs("ACGUACGUAAACCCGGGUUU", "AAACCCGGGUAUUACGUACGU"));
+    EXPECT_EQ(ScoreField(out), 1471) << out;
+}
+
+TEST(BulgeScoring, ScoresABulgeInTheQuery)
+{
+    // The query carries one extra nt, so the best alignment must pass Ix -> M.
+    const std::string out =
+        risearch_test::Run(DuplexArgs("ACGUACGUAAAGCCCGGGUUU", "AAACCCGGGUUUACGUACGU"));
+    EXPECT_EQ(ScoreField(out), 1397) << out;
+}
 } // namespace
