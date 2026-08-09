@@ -77,6 +77,45 @@ TEST(EndToEnd, HitCountModeAgreesWithTheHitLines)
     EXPECT_EQ(total, risearch_test::CountLines(risearch_test::Run(BaseArgs("400"))));
 }
 
+// A record can encode to length zero two ways: a header with no sequence, and a
+// sequence of nothing but gap characters, which seq2ix strips. Both matrices
+// start at index len - 1, which wraps on an unsigned length.
+TEST(EndToEnd, SkipsEmptyTargetRecords)
+{
+    auto args = BaseArgs("400");
+    *std::find(args.begin(), args.end(), kTarget) = RISEARCH_TEST_DATA "/target_empty_record.fa";
+
+    const std::string out = risearch_test::Run(args);
+
+    EXPECT_NE(out.find("gene1"), std::string::npos) << "the real record was not aligned";
+    EXPECT_EQ(out.find("empty"), std::string::npos) << "an empty record produced hits";
+    EXPECT_EQ(out.find("all_gaps"), std::string::npos) << "an all-gap record produced hits";
+}
+
+TEST(EndToEnd, SkipsEmptyQueryRecords)
+{
+    auto args = BaseArgs("400");
+    *std::find(args.begin(), args.end(), kQuery) = RISEARCH_TEST_DATA "/query_empty_record.fa";
+
+    const std::string out = risearch_test::Run(args);
+
+    EXPECT_NE(out.find("aso1"), std::string::npos) << "the real record was not aligned";
+    EXPECT_EQ(out.find("empty"), std::string::npos) << "an empty record produced hits";
+    EXPECT_EQ(out.find("all_gaps"), std::string::npos) << "an all-gap record produced hits";
+}
+
+TEST(EndToEnd, SkipsEmptyRecordsOnBothSides)
+{
+    auto args = BaseArgs("400");
+    *std::find(args.begin(), args.end(), kQuery) = RISEARCH_TEST_DATA "/query_empty_record.fa";
+    *std::find(args.begin(), args.end(), kTarget) = RISEARCH_TEST_DATA "/target_empty_record.fa";
+
+    const std::string out = risearch_test::Run(args);
+
+    EXPECT_EQ(out.find("empty"), std::string::npos);
+    EXPECT_EQ(out.find("all_gaps"), std::string::npos);
+}
+
 TEST(EndToEnd, ReportsAnUnreadableTargetFile)
 {
     auto args = BaseArgs("400");
