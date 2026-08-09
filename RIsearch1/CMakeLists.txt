@@ -36,7 +36,32 @@ set(RISEARCH1_DEFINES MATPATH="${RISEARCH_MATPATH}" RISVERSION=1)
 # -fpermissive downgrades the void*-to-T* conversions that C allows implicitly and
 # C++ does not. It is scaffolding for the C-to-C++ move: each malloc site wants a
 # static_cast, and this comes back out once they all have one.
-set(RISEARCH1_WARNINGS -Wall -Wextra -Wnon-virtual-dtor -Wduplicated-branches -Wduplicated-cond -pedantic -fpermissive)
+set(RISEARCH1_WARNINGS -Wall -Wextra -Wdouble-promotion -Wnon-virtual-dtor -Wduplicated-branches -Wduplicated-cond -pedantic -fpermissive -fvisibility-inlines-hidden -fvisibility=hidden)
+
+# Split by where the flag belongs: -ffunction-sections/-fdata-sections put every
+# function and object in its own section at compile time, and --gc-sections drops
+# the unreferenced ones at link time. One without the other does nothing.
+set(RISEARCH1_COMPILE_OPTS -O3 -ffunction-sections -fdata-sections)
+set(RISEARCH1_LINK_OPTS -Wl,--gc-sections)
+
+# LTO needs the same flag on both the compile and the link line. CMake's
+# INTERPROCEDURAL_OPTIMIZATION sets both, and check_ipo_supported keeps the build
+# working on toolchains that lack it.
+include(CheckIPOSupported)
+check_ipo_supported(RESULT RISEARCH1_IPO_SUPPORTED OUTPUT RISEARCH1_IPO_MESSAGE)
+if(NOT RISEARCH1_IPO_SUPPORTED)
+    message(STATUS "RIsearch1: building without LTO -- ${RISEARCH1_IPO_MESSAGE}")
+endif()
+
+# Everything the optimised targets need. Kept in one place so the binary the
+# wheel ships and the binary the benchmarks time are built the same way.
+function(risearch1_optimise target)
+    target_compile_options(${target} PRIVATE ${RISEARCH1_COMPILE_OPTS})
+    target_link_options(${target} PRIVATE ${RISEARCH1_LINK_OPTS})
+    if(RISEARCH1_IPO_SUPPORTED)
+        set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    endif()
+endfunction()
 
 # setup.py copies bin/RIsearch into the wheel, so both binaries land where the
 # Makefile used to put them rather than in the build tree.
@@ -46,7 +71,8 @@ set(RISEARCH1_BIN ${CMAKE_CURRENT_SOURCE_DIR}/bin)
 add_executable(RIsearch ${RISEARCH1_SOURCES})
 target_include_directories(RIsearch PRIVATE ${RISEARCH1_INCLUDES})
 target_compile_definitions(RIsearch PRIVATE ${RISEARCH1_DEFINES})
-target_compile_options(RIsearch PRIVATE ${RISEARCH1_WARNINGS} -O3)
+target_compile_options(RIsearch PRIVATE ${RISEARCH1_WARNINGS})
+risearch1_optimise(RIsearch)
 set_target_properties(RIsearch PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${RISEARCH1_BIN})
 
 # --- the same program with the debug printing compiled in -------------------
@@ -67,6 +93,8 @@ target_compile_definitions(risearch1_core
     PUBLIC ${RISEARCH1_DEFINES}
     PRIVATE main=risearch1_main)
 target_compile_options(risearch1_core PRIVATE ${RISEARCH1_WARNINGS})
+# The benchmarks time this library, so it is built like the shipped binary.
+risearch1_optimise(risearch1_core)
 target_link_libraries(risearch1_core PUBLIC m)
 
 if(RISEARCH_BUILD_TESTS)
