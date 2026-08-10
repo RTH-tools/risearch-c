@@ -33,10 +33,22 @@ AllowShortLoopsOnASingleLine: false
 SpaceAfterTemplateKeyword: false
 AlwaysBreakTemplateDeclarations: Yes
 
-# The include order in this project is deliberate in places -- nucleotide.h before
-# headers that use its NEGINF, for one -- so leave blocks as written.
-SortIncludes: Never
-IncludeBlocks: Preserve
+# Sorted within three groups, blank line between them: C headers, then C++
+# standard headers, then this project's. Regroup rewrites the blocks, so a header
+# that leans on a transitive include rather than its own will stop compiling --
+# which is the point, but it means the missing includes have to go in first.
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+    # <stdio.h>, <sys/stat.h>, <unistd.h>
+    - Regex: '^<.*\.h>'
+      Priority: 1
+    # <cstdio>, <string>, <vector>
+    - Regex: '^<.*>'
+      Priority: 2
+    # "fasta.h", "memory/ByteBuffer.hpp"
+    - Regex: '.*'
+      Priority: 3
 
 KeepEmptyLinesAtTheStartOfBlocks: false
 MaxEmptyLinesToKeep: 2

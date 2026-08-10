@@ -2,10 +2,10 @@
 
 #include <cstdint>
 
-#include "dsm.h"
-#include "nucleotide.h"          /* GAP */
-#include "memory/MallocRAII.hpp"
 #include "RowTerms.h"
+#include "dsm.h"
+#include "memory/MallocRAII.hpp"
+#include "nucleotide.h" /* GAP */
 
 /* Scores for one query against every target context, resolved up front.
  *
@@ -52,15 +52,30 @@ public:
         }
     }
 
-    static unsigned context(unsigned t_prev, unsigned t_cur) { return t_prev * DSM_SIDE + t_cur; }
+    static unsigned context(unsigned t_prev, unsigned t_cur)
+    {
+        return t_prev * DSM_SIDE + t_cur;
+    }
 
-    const RowTerms* row(unsigned ctx) const { return m_terms.get() + ctx * m_stride; }
+    const RowTerms* row(unsigned ctx) const
+    {
+        return m_terms.get() + ctx * m_stride;
+    }
     /* Its own contiguous run: the Ix pass reads only this term, so pulling a
        whole RowTerms to use one field of it wastes most of each cache line. */
-    const int* ix_from_m(unsigned ctx) const { return m_ix_from_m.get() + ctx * m_stride; }
+    const int* ix_from_m(unsigned ctx) const
+    {
+        return m_ix_from_m.get() + ctx * m_stride;
+    }
 
-    const int* ix_extend() const { return m_ix_extend.get(); }
-    int iy_extend(unsigned ctx) const { return m_iy_extend[ctx]; }
+    const int* ix_extend() const
+    {
+        return m_ix_extend.get();
+    }
+    int iy_extend(unsigned ctx) const
+    {
+        return m_iy_extend[ctx];
+    }
 
 private:
     std::uint32_t m_stride;

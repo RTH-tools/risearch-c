@@ -3,11 +3,11 @@
 #include <cstdint>
 #include <cstdio>
 
+#include "InteractionAlignment.h"
 #include "cli.h"
 #include "energy.hpp"
 #include "math/Matrix.h"
 #include "memory/MallocRAII.hpp"
-#include "InteractionAlignment.h"
 #include "optimization/QueryProfile.h"
 #include "traceback.h"
 
