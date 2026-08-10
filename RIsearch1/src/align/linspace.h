@@ -1,5 +1,6 @@
 #pragma once
 
+#include "HitReporter.h"
 #include "math/Matrix.h"
 #include "RunningMax.h"
 #include "align/optimization/QueryProfile.h"
@@ -11,7 +12,6 @@
 #include "nucleotide.h"
 
 #include "operations.h"
-#include "traceback.h"
 #include "memory/MallocRAII.hpp"
 #include "optimization/RowTerms.h"
 
@@ -22,14 +22,13 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
              std::uint32_t m,                      /* query seq length */
              std::uint32_t n,                      /* target seq length */
              short dsm[6][6][6][6],                /* scoring matrix -- TODO variable length!? */
-             int extension_penalty,                /* as used in dsm, to calc Score2fakE */
              int threshold,                        /* give out hits higher than that */
              const char* qname,                    /* query name */
              const char* tname,                    /* target name */
-             const config_st* config)
+             const config_st& config)
 {
     // Prepare for RIs calls:
-    const auto window = config->tblen + 1;
+    const auto window = config.tblen + 1;
     MatrixInt M_RI_RAII(window, window);  /* (Mis)Match */
     MatrixInt Ix_RI_RAII(window, window); /* Insertion in x(=query), so x paired to gap (in y) */
     MatrixInt Iy_RI_RAII(window, window); /* Insertion(=bulge) in y(=target) */
@@ -38,17 +37,17 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
     int** Iy_RI = Iy_RI_RAII.get();
 
 
-    const auto reference = reference_from_matrix(config->mat_name);
+    const auto reference = reference_from_matrix(config.mat_name);
     RunningMax running_max{};
 
 
     MallocRAII<int> hits_score(n);
     MallocRAII<int> hits_pos(n);
 
-    MallocRAII<unsigned char> tmpQseq(config->tblen);
-    MallocRAII<unsigned char> tmpTseq(config->tblen);
+    MallocRAII<unsigned char> tmpQseq(config.tblen);
+    MallocRAII<unsigned char> tmpTseq(config.tblen);
 
-    const auto alignment_capacity = static_cast<int>(1.5 * config->tblen);
+    const auto alignment_capacity = static_cast<int>(1.5 * config.tblen);
     IA maxHit(alignment_capacity);
 
     /* matrices for alignment scores ending in different states */
@@ -210,193 +209,41 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
     } /*next row j */
 
 
-    int hitcount = 0;
+    HitReporter reporter(query_sequence, target_sequence, n, dsm, profile, config, qname, tname);
 
-    /*
-      if checking for subopts && set energy threshold, do not guarantee to print best hit first, but
-      only once! if checking for subopts and p[2-4], do not check best first.
-    */
-    if (!(config->doSubopt && (config->filter_e || config->printShort > 1))) {
-        /*do backtrack for this one only! by recomputing whole matrix for this subsection */
-        /* max going back config->tblen */
-        const auto tmpQbeg =
-            running_max.pos_i > config->tblen - 1 ? running_max.pos_i - (config->tblen - 1) : 1;
-        const auto tmpTend =
-            running_max.pos_j > config->tblen - 1 ? running_max.pos_j - (config->tblen - 1) : 1;
-        const auto tmpQlen = running_max.pos_i - tmpQbeg + 1;
-        const auto tmpTlen = running_max.pos_j - tmpTend + 1;
-
-
-        for (auto i = 0; i < tmpQlen; i++) {
-            tmpQseq[i] = query_sequence[tmpQbeg - 1 + i];
-        }
-
-        for (auto i = 0; i < tmpTlen; i++) {
-            tmpTseq[i] = target_sequence[n - tmpTend - i];
-        }
-
-
-        /*strncpy will not work, as 0 is needed, no terminate etc. -
-         * no need to reset string as we need to give length anyway... otherwise like follows*/
-        /*  memset(input_str, '\0', sizeof( input_str )); */
-
-        /*With -249 in the Sugimoto case the results we obtain are the same that we get
-         from the scripts used for the off-target paper (without weights). 249 corresponds to the
-         value -G-C in the su95 matrix, removing it means we do not want to add the energy of adding
-         a firs GC on top of nothing. No initialization contribution is subtracted (which instead
-         was the case for the -559 case of the Turner matrices that is -150 for the -G-C cell in the
-         matrix, plus -409 as initiation contribution). In the case of the Santa Lucia DNA-DNA
-         matrix we applied the same reasoning used for the Sugimoto case, therefore we do
-          -363 that is the -G-C case in the matrix. In case another matrix is used options need to
-         be added.*/
-
-        RIs(tmpQseq.get(), tmpTseq.get(), tmpQlen, tmpTlen, dsm, &maxHit, config, M_RI, Ix_RI,
-            Iy_RI, profile, tmpQbeg - 1);
-
-        /*number of nt in ia to recalc Score2fakE - only tmp no need to store... */
-        const auto energy =
-            (maxHit.max + extension_penalty * maxHit.nucleotide_count() - reference) / (-100.0);
-
-
-        /** TODO :: use maxHit.max OR maxval==hits_score[maxj-1] in output !?!? **/
-        if (energy <= config->max_energy) {
-            if (config->printShort == 1) {
-                printf("%d\t%d\t%d\t%d\t%.2f\n", tmpQbeg + maxHit.qbeg - 1,
-                       tmpQbeg + maxHit.qend - 1, n - running_max.pos_j + maxHit.tbeg,
-                       n - running_max.pos_j + maxHit.tend, energy);
-                /* to be consistent with other output:
-                        printf("%d\t%d\t%d\t%d\t%.2f\t%s\n", tmpQbeg+maxHit.qbeg-1,
-                   tmpQbeg+maxHit.qend-1, n-maxj+maxHit.tend, n-maxj+maxHit.tbeg, energy,
-                   maxHit.ali_ia);
-                */
-            } else if (config->printShort == 2) {
-                printf("%s\t%d\t%d\t%s\t%d\t%d\t%d\t%.2f\n", qname, tmpQbeg + maxHit.qbeg - 1,
-                       tmpQbeg + maxHit.qend - 1, tname, n - running_max.pos_j + maxHit.tbeg,
-                       n - running_max.pos_j + maxHit.tend, running_max.score, energy);
-            } else if (config->printShort == 3) {
-                hitcount += 1;
-            } else {
-                printf("Free energy [kcal/mol]: %.2f (%d)\n", energy, running_max.score);
-                /*      printf("no of nucls in ia: %lu + %lu = %lu\n", maxHit.qend-maxHit.qbeg+1 ,
-                 * maxHit.tend-maxHit.tbeg+1 ,
-                 * maxHit.qend-maxHit.qbeg+1+maxHit.tend-maxHit.tbeg+1); */
-
-                printf("%d - %d\n", tmpQbeg + maxHit.qbeg - 1,
-                       tmpQbeg + maxHit.qend - 1); /*alignment in seq1 from to */
-                printf("%s\n%s\n%s\n", maxHit.ali_seq1.get(), maxHit.ali_ia.get(),
-                       maxHit.ali_seq2.get());
-                printf("%d - %d (3' <-- 5')\n", n - running_max.pos_j + maxHit.tend,
-                       n - running_max.pos_j + maxHit.tbeg);
-            }
-        }
+    if (!(config.doSubopt && (config.filter_e || config.printShort > 1))) {
+        reporter.report(running_max.pos_i, running_max.pos_j, running_max.score, false);
     }
-
-    /* break here if -s not set */
-    if (!config->doSubopt) {
-        if (config->printShort == 3)
-            printf("%s\t%s\t%d\n", qname, tname, hitcount);
-
+    if (!config.doSubopt) {
+        if (config.printShort == 3) {
+            printf("%s\t%s\t%d\n", qname, tname, reporter.hitcount());
+        }
         return;
     }
 
-    /* handle suboptimals - BEGIN */
-
-    /*MOST naive implementation, puts out one ia for each position in the target,
-     given that it is higher than the threshold */
-
-    auto j = n;
-    /* highest array index is j-1, lowest 0 */
-    /* as opposed to before were it was 1-n; so have to adjust by 1 here! */
-    /* OR change indices before and have array size n+1 */
-    /* what about i - still from 1-m as before !? */
+    auto j = n;   /* hits_score is 0-based over rows 1..n, so index j-1 holds row j */
     while (j--) {
-        if (hits_score[j] > threshold) {
-#ifdef DEBUG
-            printf("j=%d with %d better than threshold %d - testing neighbors\n", j, hits_score[j],
-                   threshold);
-#endif
-            auto tmp = MIN(config->vicinity, j);
-            auto tmp_min_j = j - tmp++;
-            auto locMax = 0;
-            while (--tmp) {
-                if (hits_score[j - tmp] > hits_score[j - locMax]) {
-#ifdef DEBUG
-                    printf("better result %d in distance %d\n", hits_score[j - tmp], tmp);
-#endif
-                    locMax = tmp;
-                }
-            }
-            j -= locMax;
-
-            /* maxj => j+1 ;; maxi => hits_pos[j] ;; maxval => hits_score[j] */
-
-            /* do backtrack for this hit, recompute whole matrix in subsection config->tblen */
-            const auto tmpQbeg =
-                hits_pos[j] > config->tblen - 1 ? hits_pos[j] - (config->tblen - 1) : 1;
-            const auto tmpTend = j + 1 > config->tblen - 1 ? j + 1 - (config->tblen - 1) : 1;
-            const auto tmpQlen = hits_pos[j] - tmpQbeg + 1;
-            const auto tmpTlen = j + 1 - tmpTend + 1;
-
-
-            for (auto i = 0u; i < tmpQlen; i++) {
-                tmpQseq[i] = query_sequence[tmpQbeg - 1 + i];
-            }
-            for (auto i = 0u; i < tmpTlen; i++) {
-                tmpTseq[i] = target_sequence[n - tmpTend - i];
-            }
-
-            RIs(tmpQseq.get(), tmpTseq.get(), tmpQlen, tmpTlen, dsm, &maxHit, config, M_RI, Ix_RI,
-                Iy_RI, profile,  tmpQbeg - 1);
-
-            /*number of nt in ia to recalc Score2fakE - only tmp no need to store... */
-            const auto energy =
-                (maxHit.max + extension_penalty * maxHit.nucleotide_count() - reference) / (-100.0);
-
-
-            /* TODO anything about this or ignore !?
-                  if (maxHit.max != hits_score[j]) {
-                    printf("did some realignment here - probably resulting in a duplicate...\n");
-                  }
-            */
-            /** TODO :: use maxHit.max OR hits_score[j] in output !?!? **/
-            if (energy <= config->max_energy) {
-                if (config->printShort == 1) {
-                    printf("%d\t%d\t%d\t%d\t%.2f\t%s\n", tmpQbeg + maxHit.qbeg - 1,
-                           tmpQbeg + maxHit.qend - 1, n - (j + 1) + maxHit.tend,
-                           n - (j + 1) + maxHit.tbeg, energy, maxHit.ali_ia.get());
-                } else if (config->printShort == 2) {
-                    printf("%s\t%d\t%d\t%s\t%d\t%d\t%d\t%.2f\n", qname, tmpQbeg + maxHit.qbeg - 1,
-                           tmpQbeg + maxHit.qend - 1, tname, n - (j + 1) + maxHit.tbeg,
-                           n - (j + 1) + maxHit.tend, hits_score[j], energy);
-                } else if (config->printShort == 3) {
-                    hitcount += 1;
-                } else {
-                    printf("Free energy [kcal/mol]: %.2f (%d)\n", energy, hits_score[j]);
-                    /*      printf("no of nucls in ia: %lu + %lu = %lu\n",
-                     * maxHit.qend-maxHit.qbeg+1 , maxHit.tend-maxHit.tbeg+1 ,
-                     * maxHit.qend-maxHit.qbeg+1+maxHit.tend-maxHit.tbeg+1); */
-                    printf("%d - %d\n", tmpQbeg + maxHit.qbeg - 1,
-                           tmpQbeg + maxHit.qend - 1); /*alignment in seq1 from to */
-                    printf("%s\n%s\n%s\n", maxHit.ali_seq1.get(), maxHit.ali_ia.get(),
-                           maxHit.ali_seq2.get());
-                    printf("%d - %d (3' <-- 5')\n", n - (j + 1) + maxHit.tend,
-                           n - (j + 1) + maxHit.tbeg);
-                }
-            }
-            tmp = j + 1 - maxHit.tend;
-            j = tmp_min_j; /*next check will start at first position after(before) the range that
-                              was tested here */
-                           /* alternative: set to end of that backtraced alignment!? */
-#ifdef DEBUG
-            printf("set j=%d, equals pos in seq: %d -- what about starting at end pos of ali: %d "
-                   "(j=%d) -- next attempt at j-1 resp. (pos in seq)++\n",
-                   j, n - j, n - tmp, tmp);
-#endif
-            /*      printf ("next attempt at %d not %d", j, j-1-locMax);*/
+        if (hits_score[j] <= threshold) {
+            continue;
         }
+        /* Look back up to `vicinity` rows and take the best of them. */
+        auto tmp = MIN(config.vicinity, j);   /* how far back we may look   */
+        const auto resume_at = j - tmp++;      /* where the scan resumes     */
+        auto locMax = 0u;                       /* offset of the best so far  */
+        while (--tmp) {
+            if (hits_score[j - tmp] > hits_score[j - locMax]) {
+                locMax = tmp;
+            }
+        }
+        j -= locMax;                           /* move onto the window's best */
+
+        reporter.report(hits_pos[j], j + 1, hits_score[j], true);
+
+        /* Resume below the whole window, not just below the hit we reported. */
+        j = resume_at;
+    }
+    if (config.printShort == 3) {
+        printf("%s\t%s\t%d\n", qname, tname, reporter.hitcount());
     }
 
-    /* handle suboptimals - END */
-    if (config->printShort == 3)
-        printf("%s\t%s\t%d\n", qname, tname, hitcount);
 }

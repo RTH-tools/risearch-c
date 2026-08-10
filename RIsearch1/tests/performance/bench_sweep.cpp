@@ -89,7 +89,7 @@ double measure(int min_score, int repeats)
     for (int r = 0; r < repeats; r++) {
         RIs_linSpace(const_cast<unsigned char*>(query.data()),
                      const_cast<unsigned char*>(target.data()), kQueryLength, kTargetLength, dsm,
-                     config.extension_penalty, config.min_score, "q", "t", &config);
+                     config.min_score, "q", "t", config);
     }
     const auto elapsed = std::chrono::steady_clock::now() - start;
     testing::internal::GetCapturedStdout();

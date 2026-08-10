@@ -19,7 +19,7 @@ static void run_alignment(unsigned char* qseqIx, unsigned char* tseqIx, std::uin
         RIs_force_start_end_init(config.force_start_val, config.pos_weights, qseqIx, tseqIx,
                                  len_seq1, len_seq2, dsm, config.mat_name);
     } else {
-        RIs_linSpace(qseqIx, tseqIx, len_seq1, len_seq2, dsm, config.extension_penalty,
-                     config.min_score, nameQ, nameT, &config);
+        RIs_linSpace(qseqIx, tseqIx, len_seq1, len_seq2, dsm, config.min_score, nameQ, nameT,
+                     config);
     }
 }

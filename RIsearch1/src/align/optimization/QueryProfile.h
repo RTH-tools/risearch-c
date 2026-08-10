@@ -26,12 +26,12 @@ public:
 
         for (auto t_prev = 0u; t_prev < DSM_SIDE; t_prev++) {
             for (auto t_cur = 0u; t_cur < DSM_SIDE; t_cur++) {
-                const auto combo = context(t_prev, t_cur);
+                const auto ctx = context(t_prev, t_cur);
 
                 /* No query dependence: a target bulge over a gap. */
-                m_iy_extend[combo] = dsm[GAP][GAP][t_prev][t_cur];
+                m_iy_extend[ctx] = dsm[GAP][GAP][t_prev][t_cur];
 
-                RowTerms* const terms = m_terms.get() + combo * m_stride;
+                RowTerms* const terms = m_terms.get() + ctx * m_stride;
                 for (auto i = 1u; i <= m; i++) {
                     const auto q_cur = query_sequence[i - 1];
                     /* Column 1 has no predecessor, so the q_prev terms are never
@@ -53,9 +53,9 @@ public:
 
     static unsigned context(unsigned t_prev, unsigned t_cur) { return t_prev * DSM_SIDE + t_cur; }
 
-    const RowTerms* row(unsigned combo) const { return m_terms.get() + combo * m_stride; }
+    const RowTerms* row(unsigned ctx) const { return m_terms.get() + ctx * m_stride; }
     const int* ix_extend() const { return m_ix_extend.get(); }
-    int iy_extend(unsigned combo) const { return m_iy_extend[combo]; }
+    int iy_extend(unsigned ctx) const { return m_iy_extend[ctx]; }
 
 private:
     std::uint32_t m_stride;
