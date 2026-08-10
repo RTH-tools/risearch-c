@@ -31,6 +31,10 @@ public:
         const int* iy_from_m; /* dsm[q_cur][GAP][t_prev][t_cur]    -- open a target bulge  */
         const int* ix_from_m; /* dsm[q_prev][q_cur][t_cur][GAP]    -- open a query bulge   */
         const int* ix_extend; /* dsm[q_prev][q_cur][GAP][GAP]      -- by query position    */
+        /* ix_from_m with ix_prefix taken out, and the running total to put it
+           back -- see the constructor. */
+        const int* ix_from_m_scan;
+        const int* ix_prefix; /* by query position only */
         int iy_extend;        /* dsm[GAP][GAP][t_prev][t_cur]      -- one value per row    */
     };
 
@@ -38,11 +42,25 @@ public:
         : m_stride(m + 1), m_m_from_m(kContexts * (m + 1)), m_m_from_ix(kContexts * (m + 1)),
           m_m_from_iy(kContexts * (m + 1)), m_m_open(kContexts * (m + 1)),
           m_close(kContexts * (m + 1)), m_iy_from_m(kContexts * (m + 1)),
-          m_ix_from_m(kContexts * (m + 1)), m_ix_extend(m + 1)
+          m_ix_from_m(kContexts * (m + 1)), m_ix_extend(m + 1),
+          m_ix_from_m_scan(kContexts * (m + 1)), m_ix_prefix(m + 1)
     {
         /* No target dependence: a query bulge over a gap on both sides. */
         for (auto i = 2u; i <= m; i++) {
             m_ix_extend[i] = dsm[query_sequence[i - 2]][query_sequence[i - 1]][GAP][GAP];
+        }
+
+        /* Ix[i] = max(M[i-1] + ix_from_m[i], Ix[i-1] + ix_extend[i]) is a running
+           max in which each carried candidate also picks up every ix_extend
+           between where it started and i. Subtracting the running total of
+           ix_extend from each candidate, and adding it back once at the end,
+           leaves a plain running max -- one that several query positions can
+           resolve together. ix_prefix is that running total, fixed for the
+           whole query. */
+        m_ix_prefix[0] = 0;
+        m_ix_prefix[1] = 0;
+        for (auto i = 2u; i <= m; i++) {
+            m_ix_prefix[i] = m_ix_prefix[i - 1] + m_ix_extend[i];
         }
 
         for (auto t_prev = 0u; t_prev < DSM_SIDE; t_prev++) {
@@ -67,6 +85,8 @@ public:
                     m_close[off + i] = dsm[q_cur][GAP][t_cur][GAP];
                     m_iy_from_m[off + i] = dsm[q_cur][GAP][t_prev][t_cur];
                     m_ix_from_m[off + i] = dsm[q_prev][q_cur][t_cur][GAP];
+                    m_ix_from_m_scan[off + i] =
+                        m_ix_from_m[off + i] - m_ix_prefix[i];
                 }
             }
         }
@@ -94,7 +114,9 @@ public:
         const auto off = ctx * m_stride;
         return {m_m_from_m.get() + off,  m_m_from_ix.get() + off, m_m_from_iy.get() + off,
                 m_m_open.get() + off,    m_close.get() + off,     m_iy_from_m.get() + off,
-                m_ix_from_m.get() + off, m_ix_extend.get(),       m_iy_extend[ctx]};
+                m_ix_from_m.get() + off, m_ix_extend.get(),
+                m_ix_from_m_scan.get() + off,
+                m_ix_prefix.get(),       m_iy_extend[ctx]};
     }
 
 private:
@@ -109,5 +131,7 @@ private:
     MallocRAII<int> m_iy_from_m;
     MallocRAII<int> m_ix_from_m;
     MallocRAII<int> m_ix_extend;
+    MallocRAII<int> m_ix_from_m_scan;
+    MallocRAII<int> m_ix_prefix;
     int m_iy_extend[kContexts]{};
 };

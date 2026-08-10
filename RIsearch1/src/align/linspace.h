@@ -6,6 +6,7 @@
 #include "HitReporter.h"
 #include "RunningMax.h"
 #include "align/optimization/QueryProfile.h"
+#include "align/ScoreTarget.h"
 #include "cli.h"
 #include "energy.hpp"
 #include "memory/ByteBuffer.hpp"
@@ -117,94 +118,9 @@ RIs_linSpace(const ByteBuffer& query_sequence_ix,  // query sequence numerical r
     hp[0] = running_row_max.pos_i;
 
 
-    for (auto j = 2u; j <= n; j++) {
-        /* Begin init of i=1 case */
-        const auto currentRow = j % 2;
-        const auto lastRow = 1 - currentRow;
-
-        const auto target_current = target_sequence[n - j];
-        const auto target_prev = target_sequence[n - j + 1];
-
-        /* DSM caching optimization */
-        const auto context = QueryProfile::context(target_prev, target_current);
-        const auto T = profile.row(context);
-        const auto iy_ext = T.iy_extend;
-        /* DSM caching optimization */
-
-
-        /* Column 1 is the query's first nt, nothing can precede it */
-        M[currentRow][1] = MAX(0, T.m_open[1]);
-
-        // Track only the best value, the position is recovered later (OPTIMIZATION)
-        auto row_max = M[currentRow][1] + T.close[1];
-
-        // Ix bulges a query nt, impossible in 1st nucleotide
-        Ix[currentRow][1] = NEGINF;
-
-        // Iy bulges a target nt, j>=2 so bulge possible.
-        // Only M can win row max, so we don't take this as a candidate
-        Iy[currentRow][1] = MAX(
-            // We are now opening the bulge
-            M[lastRow][1] + T.iy_from_m[1],
-            // We are extending a bulge
-            Iy[lastRow][1] + iy_ext);
-
-        /* finished init of i=1 col */
-
-
-        for (auto i = 2u; i <= m; i++) {
-            M[currentRow][i] = max4(
-                /* coming from a match */
-                M[lastRow][i - 1] != 0 ? M[lastRow][i - 1] + T.m_from_m[i] : -1,
-                /* coming from gap in target */
-                Ix[lastRow][i - 1] + T.m_from_ix[i],
-                /* coming from gap in query */
-                Iy[lastRow][i - 1] + T.m_from_iy[i],
-                /* start fresh */
-                T.m_open[i]);
-
-            // Set max now, position is recovered later (OPTIMIZATION)
-            row_max = MAX(row_max, M[currentRow][i] + T.close[i]);
-
-            /**
-             * Iy: target nt against a gap
-             */
-            Iy[currentRow][i] = MAX(
-                // pair at previous row, now bulge
-                M[lastRow][i] + T.iy_from_m[i],
-                // already bulging, add one more
-                Iy[lastRow][i] + iy_ext);
-        }
-
-        // Split the loop for performance.
-        for (auto i = 2u; i <= m; ++i) {
-            /**
-             * Ix: query nt against a gap
-             */
-            Ix[currentRow][i] = MAX(
-                // pair at i - 1, now bulge
-                M[currentRow][i - 1] + T.ix_from_m[i],
-                // already bulging, add one more
-                Ix[currentRow][i - 1] + T.ix_extend[i]);
-        }
-
-        // Re-infer the row max's position
-        auto row_pos = 1u;
-        if (row_max > threshold || row_max > running_max.score) {
-            for (auto i = 1u; i <= m; ++i) {
-                if (M[currentRow][i] + T.close[i] == row_max) {
-                    row_pos = i;
-                    break;
-                }
-            }
-        }
-
-        hs[j - 1] = row_max;
-        hp[j - 1] = static_cast<int>(row_pos);
-
-        running_max.set_if_better(row_max, static_cast<int>(row_pos), j);
-
-    } /*next row j */
+    const ScoreTargetArgs scoring{target_sequence, &profile, M,  Ix,       Iy,
+                                 hs,              hp,       n,  threshold};
+    score_target(scoring, running_max);
 
 
     HitReporter reporter(query_sequence, target_sequence, n, dsm, profile, config, qname, tname);
