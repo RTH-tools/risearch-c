@@ -158,7 +158,16 @@ bool ReadFASTA(FASTAFILE* ffp, ByteBuffer& ret_seq, ByteBuffer& ret_name)
      * settles on one buffer instead of allocating per record.
      */
     ret_seq.clear();
-    while (fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp)) {
+    for (;;) {
+        if (fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp) == NULL) {
+            /* End of file. fgets leaves the buffer alone when it fails, so the
+             * descline this record came from would still be sitting in it and
+             * the next call would hand back this same record again, for ever.
+             * Empty the lookahead so that call reports the file as finished.
+             */
+            ffp->buffer[0] = '\0';
+            break;
+        }
         if (ffp->buffer[0] == '>')
             break; /* a-ha, we've reached the next descline */
 

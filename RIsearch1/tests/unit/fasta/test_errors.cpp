@@ -93,3 +93,23 @@ TEST(Fasta, AcceptsGapsCoordinateColumnsAndCarriageReturns)
     CloseFASTA(ffp);
 }
 
+TEST(Fasta, AFileEndingWithAHeaderReachesTheEnd)
+{
+    // fgets leaves the buffer untouched when it hits end of file, so a file
+    // whose last line is a descline could leave that descline in the lookahead
+    // and be read for ever. The cap is what makes this a failed assertion
+    // rather than a hung test: without it the loop never exits, and every pass
+    // allocates another record.
+    FASTAFILE* ffp = OpenFASTA(WriteFasta("trailing_header", ">a\nACGU\n>b\n").c_str());
+    ASSERT_NE(ffp, nullptr);
+
+    ByteBuffer seq;
+    ByteBuffer name;
+    int records = 0;
+    while (records < 100 && ReadFASTA(ffp, seq, name)) {
+        ++records;
+    }
+
+    EXPECT_EQ(records, 2) << "the reader never reached the end of the file";
+    CloseFASTA(ffp);
+}
