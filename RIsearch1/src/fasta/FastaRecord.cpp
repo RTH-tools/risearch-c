@@ -4,33 +4,25 @@
 
 bool FastaRecord::read(FASTAFILE* file)
 {
-    char* name = nullptr;
-    char* sequence = nullptr;
-    std::uint32_t size = 0;
-
-    if (!file || !ReadFASTA(file, &sequence, &name, &size)) {
-        m_name.reset();
-        m_sequence.reset();
-        m_size = 0;
+    if (!file || !ReadFASTA(file, m_sequence, m_name)) {
+        m_sequence.clear();
+        m_name.clear();
         return false;
     }
-    m_name.reset(name);
-    m_sequence.reset(sequence);
-    m_size = size;
     return true;
 }
 
 const char* FastaRecord::get_sequence() const
 {
-    return m_sequence.get();
+    return m_sequence.c_str();
 }
 
 const char* FastaRecord::get_name() const
 {
-    return m_name.get();
+    return m_name.c_str();
 }
 
 std::uint32_t FastaRecord::get_size() const
 {
-    return m_size;
+    return static_cast<std::uint32_t>(m_sequence.size());
 }

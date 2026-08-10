@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <cstdint>
 
+#include "memory/ByteBuffer.hpp"
+
 #define FASTA_MAXLINE 512 /* Requires FASTA file lines to be <512 characters */
 
 typedef struct fastafile_s {
@@ -17,6 +19,6 @@ typedef struct fastafile_s {
 } FASTAFILE;
 
 FASTAFILE* OpenFASTA(const char* seqfile);
-int ReadFASTA(FASTAFILE* fp, char** ret_seq, char** ret_name, std::uint32_t* ret_L);
+bool ReadFASTA(FASTAFILE* fp, ByteBuffer& ret_seq, ByteBuffer& ret_name);
 void CloseFASTA(FASTAFILE* ffp);
 

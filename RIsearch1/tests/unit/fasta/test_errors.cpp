@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "fasta.h"
+#include "memory/ByteBuffer.hpp"
 #include <cstdlib>
 #include <string>
 
@@ -32,12 +33,9 @@ static void ReadAll(const std::string& path)
     FASTAFILE* ffp = OpenFASTA(path.c_str());
     if (ffp == nullptr)
         return;
-    char* seq = nullptr;
-    char* name = nullptr;
-    std::uint32_t len = 0;
-    while (ReadFASTA(ffp, &seq, &name, &len)) {
-        free(seq);
-        free(name);
+    ByteBuffer seq;
+    ByteBuffer name;
+    while (ReadFASTA(ffp, seq, name)) {
     }
     CloseFASTA(ffp);
 }
@@ -83,19 +81,15 @@ TEST(Fasta, AcceptsGapsCoordinateColumnsAndCarriageReturns)
     FASTAFILE* ffp = OpenFASTA(path.c_str());
     ASSERT_NE(ffp, nullptr);
 
-    char* seq = nullptr;
-    char* name = nullptr;
-    std::uint32_t len = 0;
+    ByteBuffer seq;
+    ByteBuffer name;
 
-    ASSERT_TRUE(ReadFASTA(ffp, &seq, &name, &len));
-    EXPECT_STREQ(seq, "ACGUAC");
-    free(seq);
-    free(name);
+    ASSERT_TRUE(ReadFASTA(ffp, seq, name));
+    EXPECT_STREQ(seq.c_str(), "ACGUAC");
 
-    ASSERT_TRUE(ReadFASTA(ffp, &seq, &name, &len));
-    EXPECT_STREQ(seq, "ACGUGGCC");
-    free(seq);
-    free(name);
+    ASSERT_TRUE(ReadFASTA(ffp, seq, name));
+    EXPECT_STREQ(seq.c_str(), "ACGUGGCC");
 
     CloseFASTA(ffp);
 }
+

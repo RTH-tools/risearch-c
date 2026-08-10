@@ -1,6 +1,6 @@
 #pragma once
 
-#include "memory/MallocRAII.hpp"
+#include "memory/ByteBuffer.hpp"
 
 #include "fasta/fasta.h"
 
@@ -18,11 +18,10 @@ public:
 
     [[nodiscard]] explicit operator bool() const
     {
-        return m_sequence.get() != nullptr;
+        return !m_sequence.empty() || !m_name.empty();
     }
 
 private:
-    MallocRAII<char> m_sequence;
-    MallocRAII<char> m_name;
-    std::uint32_t m_size = 0;
+    ByteBuffer m_sequence;
+    ByteBuffer m_name;
 };

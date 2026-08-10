@@ -18,17 +18,14 @@ TEST(Fasta, ReadsNameAndSequenceOfTheFirstRecord)
     FASTAFILE* ffp = OpenFASTA(kQuery);
     ASSERT_NE(ffp, nullptr);
 
-    char* seq = nullptr;
-    char* name = nullptr;
-    std::uint32_t len = 0;
-    ASSERT_TRUE(ReadFASTA(ffp, &seq, &name, &len));
+    ByteBuffer seq;
+    ByteBuffer name;
+    ASSERT_TRUE(ReadFASTA(ffp, seq, name));
 
-    EXPECT_STREQ(name, "aso1");
-    EXPECT_STREQ(seq, "GCGCUGUACGAUCGAUCGAU");
-    EXPECT_EQ(len, 20u);
+    EXPECT_STREQ(name.c_str(), "aso1");
+    EXPECT_STREQ(seq.c_str(), "GCGCUGUACGAUCGAUCGAU");
+    EXPECT_EQ(seq.size(), 20u);
 
-    free(seq);
-    free(name);
     CloseFASTA(ffp);
 }
 
@@ -37,14 +34,11 @@ TEST(Fasta, ReadsEveryRecordThenStops)
     FASTAFILE* ffp = OpenFASTA(kQuery);
     ASSERT_NE(ffp, nullptr);
 
-    char* seq = nullptr;
-    char* name = nullptr;
-    std::uint32_t len = 0;
+    ByteBuffer seq;
+    ByteBuffer name;
     int count = 0;
-    while (ReadFASTA(ffp, &seq, &name, &len)) {
-        EXPECT_EQ(len, 20u) << "record " << count;
-        free(seq);
-        free(name);
+    while (ReadFASTA(ffp, seq, name)) {
+        EXPECT_EQ(seq.size(), 20u) << "record " << count;
         ++count;
     }
 
@@ -57,13 +51,10 @@ TEST(FastaRAIITest, HandleIsUsableForAReadableFile)
     FastaRAII fasta(kQuery);
     ASSERT_NE(fasta.handle(), nullptr);
 
-    char* seq = nullptr;
-    char* name = nullptr;
-    std::uint32_t len = 0;
-    ASSERT_TRUE(ReadFASTA(fasta.handle(), &seq, &name, &len));
-    EXPECT_STREQ(name, "aso1");
-    free(seq);
-    free(name);
+    ByteBuffer seq;
+    ByteBuffer name;
+    ASSERT_TRUE(ReadFASTA(fasta.handle(), seq, name));
+    EXPECT_STREQ(name.c_str(), "aso1");
 }
 
 TEST(FastaRAIITest, HandleIsNullForAMissingFile)

@@ -14,11 +14,9 @@
  *           The API is:
  *
  *           ffp = OpenFASTA(seqfile);
- *           while (ReadFASTA(ffp, &seq, &name, &seqlen)
+ *           while (ReadFASTA(ffp, seq, name))
  *           {
  *             do stuff with sequence;
- *             free(name);
- *             free(seq);
  *           }
  *           CloseFASTA(ffp);
  *
@@ -26,7 +24,6 @@
  *           seqfile   - name of a FASTA file to open.
  *           seq       - RETURN: one sequence
  *           name      - RETURN: name of the sequence
- *           seqlen    - RETURN: length of the sequence in residues
  *           ffp       - ptr to a FASTAFILE object.
  *
  * Commentary:
@@ -81,7 +78,7 @@
  *           OpenFASTA() returns a FASTAFILE pointer, or NULL on failure (for
  *           instance, if the file doesn't exist, or isn't readable).
  *
- *           ReadFASTA() returns 1 on success, or a 0 if there are no
+ *           ReadFASTA() returns true on success, or false if there are no
  *           more sequences to read in the file.
  *
  *           CloseFASTA() "always succeeds" and returns void.
@@ -142,60 +139,51 @@ FASTAFILE* OpenFASTA(const char* seqfile)
     return ffp;
 }
 
-int ReadFASTA(FASTAFILE* ffp, char** ret_seq, char** ret_name, std::uint32_t* ret_L)
+bool ReadFASTA(FASTAFILE* ffp, ByteBuffer& ret_seq, ByteBuffer& ret_name)
 {
-    char* s;
-    char* name;
-    char* seq;
-    int n;
-    int nalloc;
-
     /* Peek at the lookahead buffer; see if it appears to be a valid FASTA descline.
      */
     if (ffp->buffer[0] != '>')
-        return 0;
+        return false;
 
     /* Parse out the name: the first non-whitespace token after the >
      */
-    s = strtok(ffp->buffer + 1, " \t\r\n");
-    name = reinterpret_cast<char*>(malloc(sizeof(char) * (strlen(s) + 1)));
-    strcpy(name, s);
+    const char* s = strtok(ffp->buffer + 1, " \t\r\n");
+    ret_name.clear();
+    ret_name.append(s, strlen(s));
+    ret_name.terminate();
 
-    /* Everything else 'til the next descline is the sequence.
-     * Note the idiom for dynamic reallocation of seq as we
-     * read more characters, so we don't have to assume a maximum
-     * sequence length.
+    /* Everything else 'til the next descline is the sequence. clear() keeps the
+     * capacity the previous record grew, so reading a file of similar records
+     * settles on one buffer instead of allocating per record.
      */
-    seq = reinterpret_cast<char*>(malloc(sizeof(char) * 128)); /* allocate seq in blocks of 128 residues */
-    nalloc = 128;
-    n = 0;
+    ret_seq.clear();
     while (fgets(ffp->buffer, FASTA_MAXLINE, ffp->fp)) {
         if (ffp->buffer[0] == '>')
             break; /* a-ha, we've reached the next descline */
 
-        for (s = ffp->buffer; *s != '\0'; s++) {
-            const unsigned char c = static_cast<unsigned char>(*s);
+        /* A sequence line is normally residues followed by a line ending, so
+         * take the leading run in one append and only go character by character
+         * over whatever follows it.
+         */
+        const unsigned char* line = reinterpret_cast<const unsigned char*>(ffp->buffer);
+        std::size_t run = 0;
+        while (kResidue.is[line[run]])
+            run++;
+        ret_seq.append(ffp->buffer, run);
+
+        for (std::size_t i = run; line[i] != '\0'; i++) {
+            const unsigned char c = line[i];
             if (!kResidue.is[c]) {
                 if (!tolerated_in_sequence(c))
-                    reject_corrupt_byte(c, name);
+                    reject_corrupt_byte(c, ret_name.c_str());
                 continue; /* accept any alphabetic character */
             }
-
-            seq[n] = *s; /* store the character, bump length n */
-            n++;
-            if (nalloc == n) /* are we out of room in seq? if so, expand */
-            {                /* (remember, need space for the final '\0')*/
-                nalloc += 128;
-                seq = reinterpret_cast<char*>(realloc(seq, sizeof(char) * nalloc));
-            }
+            ret_seq.push_back(static_cast<char>(c));
         }
     }
-    seq[n] = '\0';
-
-    *ret_name = name;
-    *ret_seq = seq;
-    *ret_L = n;
-    return 1;
+    ret_seq.terminate();
+    return true;
 }
 
 void CloseFASTA(FASTAFILE* ffp)
