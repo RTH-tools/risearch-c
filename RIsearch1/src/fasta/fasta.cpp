@@ -90,9 +90,10 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
-#include <cctype>
 
 #include "fasta.h"
+#include "fasta/ResidueTable.h"
+
 
 
 FASTAFILE* OpenFASTA(const char* seqfile)
@@ -147,7 +148,8 @@ int ReadFASTA(FASTAFILE* ffp, char** ret_seq, char** ret_name, std::uint32_t* re
             break; /* a-ha, we've reached the next descline */
 
         for (s = ffp->buffer; *s != '\0'; s++) {
-            if (!isalpha(*s))
+            const unsigned char c = static_cast<unsigned char>(*s);
+            if (!kResidue.is[c])
                 continue; /* accept any alphabetic character */
 
             seq[n] = *s; /* store the character, bump length n */
