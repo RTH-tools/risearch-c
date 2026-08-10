@@ -9,6 +9,5 @@ struct RowTerms {
     int m_from_iy;  /* dsm[GAP][q_cur][t_prev][t_cur]    -- close a target bulge*/
     int m_open;     /* dsm[GAP][q_cur][GAP][t_cur]       -- open on this pair   */
     int close;      /* dsm[q_cur][GAP][t_cur][GAP]       -- terminate after it  */
-    int ix_from_m;  /* dsm[q_prev][q_cur][t_cur][GAP]    -- open a query bulge  */
     int iy_from_m;  /* dsm[q_cur][GAP][t_prev][t_cur]    -- open a target bulge */
 };

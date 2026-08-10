@@ -17,7 +17,8 @@
 class QueryProfile {
 public:
     QueryProfile(const unsigned char* query_sequence, std::uint32_t m, short dsm[6][6][6][6])
-        : m_stride(m + 1), m_terms(DSM_SIDE * DSM_SIDE * (m + 1)), m_ix_extend(m + 1)
+        : m_stride(m + 1), m_terms(DSM_SIDE * DSM_SIDE * (m + 1)),
+          m_ix_from_m(DSM_SIDE * DSM_SIDE * (m + 1)), m_ix_extend(m + 1)
     {
         /* No target dependence: a query bulge over a gap on both sides. */
         for (auto i = 2u; i <= m; i++) {
@@ -44,7 +45,7 @@ public:
                     terms[i].m_from_iy = dsm[GAP][q_cur][t_prev][t_cur];
                     terms[i].m_open = dsm[GAP][q_cur][GAP][t_cur];
                     terms[i].close = dsm[q_cur][GAP][t_cur][GAP];
-                    terms[i].ix_from_m = dsm[q_prev][q_cur][t_cur][GAP];
+                    m_ix_from_m[ctx * m_stride + i] = dsm[q_prev][q_cur][t_cur][GAP];
                     terms[i].iy_from_m = dsm[q_cur][GAP][t_prev][t_cur];
                 }
             }
@@ -54,12 +55,17 @@ public:
     static unsigned context(unsigned t_prev, unsigned t_cur) { return t_prev * DSM_SIDE + t_cur; }
 
     const RowTerms* row(unsigned ctx) const { return m_terms.get() + ctx * m_stride; }
+    /* Its own contiguous run: the Ix pass reads only this term, so pulling a
+       whole RowTerms to use one field of it wastes most of each cache line. */
+    const int* ix_from_m(unsigned ctx) const { return m_ix_from_m.get() + ctx * m_stride; }
+
     const int* ix_extend() const { return m_ix_extend.get(); }
     int iy_extend(unsigned ctx) const { return m_iy_extend[ctx]; }
 
 private:
     std::uint32_t m_stride;
     MallocRAII<RowTerms> m_terms;
+    MallocRAII<int> m_ix_from_m;
     MallocRAII<int> m_ix_extend;
     int m_iy_extend[DSM_SIDE * DSM_SIDE]{};
 };

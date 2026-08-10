@@ -86,6 +86,8 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
     // Use this  QueryProfile to fetch terms that ignore the previous target nt (GAP)
     // and relate to first target nt (target_seq[0])
     const RowTerms* T = profile.row(QueryProfile::context(GAP, target_seq[0]));
+    const int* const ix_from_m_1 =
+        profile.ix_from_m(QueryProfile::context(GAP, target_seq[0]));
     const int* const ix_ext = profile.ix_extend();
 
     M[1][1] = T[q_offset + 1].m_open;
@@ -101,7 +103,7 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
         M[i][1] = T[qp].m_open;
         running_max.set_if_better(M[i][1] + T[qp].close, i, 1);
 
-        Ix[i][1] = max3(M[i - 1][1] != 0 ? M[i - 1][1] + T[qp].ix_from_m : -1,
+        Ix[i][1] = max3(M[i - 1][1] != 0 ? M[i - 1][1] + ix_from_m_1[qp] : -1,
                         Ix[i - 1][1] != 0 ? Ix[i - 1][1] + ix_ext[qp] : -1, 0);
 
         Iy[i][1] = NEGINF;
@@ -129,6 +131,7 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
         for (auto j = 2; j <= n; j++) {
             const auto context = QueryProfile::context(target_seq[j - 2], target_seq[j - 1]);
             const RowTerms& t = profile.row(context)[qp];
+            const int* const IXM = profile.ix_from_m(context);
             const auto iy_ext = profile.iy_extend(context);
 
             M[i][j] = max4(
@@ -145,7 +148,7 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
 
             Ix[i][j] = max3(
                 // Open a bulge in query
-                M[i - 1][j] != 0 ? M[i - 1][j] + t.ix_from_m : -1,
+                M[i - 1][j] != 0 ? M[i - 1][j] + IXM[qp] : -1,
                 // Continue a bulge in query
                 Ix[i - 1][j] != 0 ? Ix[i - 1][j] + ix_ext[qp] : -1, 0);
 
@@ -210,7 +213,8 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
             const auto& t = profile.row(QueryProfile::context(GAP, target_seq[j - 1]))[qp];
 
             /* seq1(query) paired to a gap (in target) */
-            if (Ix[i][j] == M[i - 1][j] + t.ix_from_m) {
+            if (Ix[i][j] == M[i - 1][j] +
+                    profile.ix_from_m(QueryProfile::context(GAP, target_seq[j - 1]))[qp]) {
                 k = TraceState::TRACE_M; /* open a new gap coming from match */
             } else if (Ix[i][j] == Ix[i - 1][j] + ix_ext[qp]) {
                 k = TraceState::TRACE_IX; /* extend existing gap */

@@ -144,6 +144,7 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
         /* DSM caching optimization */
         const auto context = QueryProfile::context(target_prev, target_current);
         const RowTerms* T = profile.row(context);
+        const int* const ix_from_m = profile.ix_from_m(context);
         const auto iy_ext = profile.iy_extend(context);
         /* DSM caching optimization */
 
@@ -151,7 +152,8 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
         /* Column 1 is the query's first nt, nothing can precede it */
         M[currentRow][1] = MAX(0, T[1].m_open);
 
-        running_row_max.set(M[currentRow][1] + T[1].close, 1);
+        // Track only the best value, the position is recovered later (OPTIMIZATION)
+        auto row_max = M[currentRow][1] + T[1].close;
 
         // Ix bulges a query nt, impossible in 1st nucleotide
         Ix[currentRow][1] = NEGINF;
@@ -179,17 +181,8 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
                 /* start fresh */
                 T[i].m_open);
 
-            /* Set the best alignment ending in position i for row j*/
-            running_row_max.set_if_better(M[currentRow][i] + T[i].close, i);
-
-            /**
-             * Ix: query nt against a gap
-             */
-            Ix[currentRow][i] = MAX(
-                // pair at i - 1, now bulge
-                M[currentRow][i - 1] + T[i].ix_from_m,
-                // already bulging, add one more
-                Ix[currentRow][i - 1] + ix_extend[i]);
+            // Set max now, position is recovered later (OPTIMIZATION)
+            row_max = MAX(row_max, M[currentRow][i] + T[i].close);
 
             /**
              * Iy: target nt against a gap
@@ -201,10 +194,33 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
                 Iy[lastRow][i] + iy_ext);
         }
 
-        hs[j - 1] = running_row_max.score;
-        hp[j - 1] = running_row_max.pos_i;
+        // Split the loop for performance.
+        for (auto i = 2u; i <= m; ++i) {
+            /**
+             * Ix: query nt against a gap
+             */
+            Ix[currentRow][i] = MAX(
+                // pair at i - 1, now bulge
+                M[currentRow][i - 1] + ix_from_m[i],
+                // already bulging, add one more
+                Ix[currentRow][i - 1] + ix_extend[i]);
+        }
 
-        running_max.set_if_better(running_row_max.score, running_row_max.pos_i, j);
+        // Re-infer the row max's position
+        auto row_pos = 1u;
+        if (row_max > threshold || row_max > running_max.score) {
+            for (auto i = 1u; i <= m; ++i) {
+                if (M[currentRow][i] + T[i].close == row_max) {
+                    row_pos = i;
+                    break;
+                }
+            }
+        }
+
+        hs[j - 1] = row_max;
+        hp[j - 1] = static_cast<int>(row_pos);
+
+        running_max.set_if_better(row_max, static_cast<int>(row_pos), j);
 
     } /*next row j */
 
