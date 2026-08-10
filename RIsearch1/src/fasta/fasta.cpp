@@ -95,6 +95,32 @@
 #include "fasta/ResidueTable.h"
 
 
+namespace {
+
+/* Besides residues, a sequence line may hold the line ending, the spaces and
+ * digits of a coordinate column, and the '-' and '.' of an alignment gap. A
+ * byte outside that set is corruption, and dropping it quietly would return a
+ * shorter sequence that still looks valid.
+ */
+bool tolerated_in_sequence(unsigned char c)
+{
+    return c == '\n' || c == '\r' || c == ' ' || c == '\t' || c == '-' || c == '.' ||
+           (c >= '0' && c <= '9');
+}
+
+/* Out of line so that fprintf does not sit inside the per-character loop, where
+ * it costs about a tenth of the throughput for a branch a readable file never
+ * takes.
+ */
+[[noreturn]] __attribute__((noinline, cold)) void reject_corrupt_byte(unsigned char c,
+                                                                     const char* name)
+{
+    fprintf(stderr, "Corrupt byte 0x%02x in the sequence of '%s'.\n", c, name);
+    exit(1);
+}
+
+} // namespace
+
 
 FASTAFILE* OpenFASTA(const char* seqfile)
 {
@@ -149,8 +175,11 @@ int ReadFASTA(FASTAFILE* ffp, char** ret_seq, char** ret_name, std::uint32_t* re
 
         for (s = ffp->buffer; *s != '\0'; s++) {
             const unsigned char c = static_cast<unsigned char>(*s);
-            if (!kResidue.is[c])
+            if (!kResidue.is[c]) {
+                if (!tolerated_in_sequence(c))
+                    reject_corrupt_byte(c, name);
                 continue; /* accept any alphabetic character */
+            }
 
             seq[n] = *s; /* store the character, bump length n */
             n++;
