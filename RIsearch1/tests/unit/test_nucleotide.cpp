@@ -37,18 +37,26 @@ TEST(NucleotideCoding, RoundTripsThroughIndexAndBack)
     }
 }
 
-TEST(NucleotideCoding, Seq2ixEncodesASequenceAndReportsGapsRemoved)
+TEST(NucleotideCoding, Seq2ixEncodesASequenceAndDropsGaps)
 {
-    // seq2ix writes one index per non-gap character, compacting gaps out, and
-    // returns how many it dropped. Callers subtract that from the length.
+    // seq2ix appends one index per non-gap character, so the buffer's length is
+    // the encoded length and the caller has nothing to correct.
     char seq[] = "AC-GU";
-    std::vector<unsigned char> out(sizeof(seq), 0xFF);
+    ByteBuffer out;
 
-    const int gaps = seq2ix(5, seq, out.data(), (char*)"test", (char*)"query");
+    ASSERT_TRUE(seq2ix(5, seq, out, "test", "query"));
 
-    EXPECT_EQ(gaps, 1);
-    EXPECT_EQ(out[0], 0); // A
-    EXPECT_EQ(out[1], 1); // C
-    EXPECT_EQ(out[2], 2); // G, shifted down over the gap
-    EXPECT_EQ(out[3], 3); // U
+    EXPECT_EQ(out.size(), 4u); // one shorter than the input: the gap is gone
+    EXPECT_EQ(out[0], 0);      // A
+    EXPECT_EQ(out[1], 1);      // C
+    EXPECT_EQ(out[2], 2);      // G, shifted down over the gap
+    EXPECT_EQ(out[3], 3);      // U
+}
+
+TEST(NucleotideCoding, Seq2ixRejectsACharacterThatIsNotANucleotideCode)
+{
+    char seq[] = "AC@GU";
+    ByteBuffer out;
+
+    EXPECT_FALSE(seq2ix(5, seq, out, "test", "query"));
 }

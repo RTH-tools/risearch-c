@@ -32,31 +32,15 @@
 #include "dsm.h"
 #include "cli.h"
 
-#include "memory/MallocRAII.hpp"
 #include "FastaRAII.h"
 #include "FastaRecord.h"
 #include "align/dispatch.h"
-
-
-static bool encode_sequence(const char* seq, std::uint32_t& len, unsigned char* ix,
-                            const char* name, const char* which)
-{
-    const int check = seq2ix(len, seq, ix, name, which);
-    if (check < 0) {
-        return false;
-    }
-    if (check > 0) {
-        len -= check;
-    }
-    return true;
-}
 
 
 int main(int argc, char* argv[])
 {
     /* values filled in by getArgs from the command line */
     static config_st config;
-
 
     short dsm[6][6][6][6];
 
@@ -78,16 +62,18 @@ int main(int argc, char* argv[])
         }
         FastaRecord target_record;
 
+        ByteBuffer query_seq_indices;
+        ByteBuffer target_seq_indices;
+
         int target_count = 0;
         while (target_record.read(target_fasta.handle())) {
-            auto len_seq2 = target_record.get_size();
             target_count++;
-            MallocRAII<unsigned char> tseqIx(len_seq2);
             /*can be done already when reading in first place */
-            if (!encode_sequence(target_record.get_sequence(), len_seq2, tseqIx.get(),
-                                 target_record.get_name(), "target")) {
+            if (!seq2ix(target_record.get_size(), target_record.get_sequence(), target_seq_indices,
+                        target_record.get_name(), "target")) {
                 continue; // non-alpha char in input
             }
+            const auto len_seq2 = static_cast<std::uint32_t>(target_seq_indices.size());
 
             if (config.seq1_file_name) {
                 /* query given as file */
@@ -100,13 +86,11 @@ int main(int argc, char* argv[])
                 auto query_count = 0;
                 while (query_record.read(query_fasta.handle())) {
                     query_count++;
-                    auto len_seq1 = query_record.get_size();
-                    MallocRAII<unsigned char> qseqIx(len_seq1);
-
-                    if (!encode_sequence(query_record.get_sequence(), len_seq1, qseqIx.get(),
-                                         query_record.get_name(), "query")) {
+                    if (!seq2ix(query_record.get_size(), query_record.get_sequence(), query_seq_indices,
+                                query_record.get_name(), "query")) {
                         continue; // non-alpha char in input
                     }
+                    const auto len_seq1 = static_cast<std::uint32_t>(query_seq_indices.size());
 
                     if (!config.all_vs_all && target_count != query_count) {
                         continue;
@@ -117,26 +101,23 @@ int main(int argc, char* argv[])
                                query_count, query_record.get_name(), len_seq1, target_count,
                                target_record.get_name(), len_seq2);
 
-                    run_alignment(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
-                                  query_record.get_name(), target_record.get_name(), config);
+                    run_alignment(query_seq_indices, target_seq_indices, dsm, query_record.get_name(),
+                                  target_record.get_name(), config);
                 }
             } else if (config.seq1_cli) {
                 /* query given as command line parameter */
-                std::uint32_t len_seq1 = strlen(config.seq1_cli);
-                MallocRAII<unsigned char> qseqIx(len_seq1);
-
-                if (!encode_sequence(config.seq1_cli, len_seq1, qseqIx.get(), "from command line",
-                                     "query")) {
+                if (!seq2ix(strlen(config.seq1_cli), config.seq1_cli, query_seq_indices, "from command line",
+                            "query")) {
                     return -1; /*non-alpha char in input -- break would loop through all query seqs,
                                    no use */
                 }
+                const auto len_seq1 = static_cast<std::uint32_t>(query_seq_indices.size());
 
                 if (config.printShort < 2)
                     printf("\n\nquery from_cli (%u nts) vs. target %s (%u nts)\n\n", len_seq1,
                            target_record.get_name(), len_seq2);
 
-                run_alignment(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm, "from_cli",
-                              target_record.get_name(), config);
+                run_alignment(query_seq_indices, target_seq_indices, dsm, "from_cli", target_record.get_name(), config);
 
             } else {
                 fprintf(stderr, "No query seq given!");
@@ -145,13 +126,12 @@ int main(int argc, char* argv[])
         }
     } else if (config.seq2_cli) {
         /*target given as command line parameter */
-        std::uint32_t len_seq2 = strlen(config.seq2_cli);
-        MallocRAII<unsigned char> tseqIx(len_seq2);
-
-        if (!encode_sequence(config.seq2_cli, len_seq2, tseqIx.get(), "from command line",
-                             "target")) {
+        ByteBuffer target_seq_indices;
+        if (!seq2ix(strlen(config.seq2_cli), config.seq2_cli, target_seq_indices, "from command line",
+                    "target")) {
             return -1; /*non-alpha char in input */
         }
+        const auto len_seq2 = static_cast<std::uint32_t>(target_seq_indices.size());
 
         if (config.seq1_file_name) {
             /* query given as file */
@@ -162,40 +142,36 @@ int main(int argc, char* argv[])
                 return -1;
             }
             FastaRecord query_record;
+            ByteBuffer qseqIx;
             while (query_record.read(query_fasta.handle())) {
-                auto len_seq1 = query_record.get_size();
-                MallocRAII<unsigned char> qseqIx(len_seq1);
-
-                if (!encode_sequence(query_record.get_sequence(), len_seq1, qseqIx.get(),
-                                     query_record.get_name(), "query")) {
+                if (!seq2ix(query_record.get_size(), query_record.get_sequence(), qseqIx,
+                            query_record.get_name(), "query")) {
                     continue; /*non-alpha char in input */
                 }
+                const auto len_seq1 = static_cast<std::uint32_t>(qseqIx.size());
 
                 if (config.printShort < 2) {
                     printf("\n\nquery %s (%u nts) vs. target from_cli (%u nts)\n\n",
                            query_record.get_name(), len_seq1, len_seq2);
                 }
 
-                run_alignment(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm,
-                              query_record.get_name(), "from_cli", config);
+                run_alignment(qseqIx, target_seq_indices, dsm, query_record.get_name(), "from_cli", config);
             }
         } else if (config.seq1_cli) {
             /* query given as command line parameter */
 
-            std::uint32_t len_seq1 = strlen(config.seq1_cli);
-            MallocRAII<unsigned char> qseqIx(len_seq1);
-
-            if (!encode_sequence(config.seq1_cli, len_seq1, qseqIx.get(), "from command line",
-                                 "query")) {
+            ByteBuffer qseqIx;
+            if (!seq2ix(strlen(config.seq1_cli), config.seq1_cli, qseqIx, "from command line",
+                        "query")) {
                 return -1; /* non-alpha char in input -- break would loop through queries, no use */
             }
+            const auto len_seq1 = static_cast<std::uint32_t>(qseqIx.size());
 
             if (config.printShort < 2)
                 printf("\n\nquery from_cli (%u nts) vs. target from_cli (%u nts)\n\n", len_seq1,
                        len_seq2);
 
-            run_alignment(qseqIx.get(), tseqIx.get(), len_seq1, len_seq2, dsm, "from_cli",
-                          "from_cli", config);
+            run_alignment(qseqIx, target_seq_indices, dsm, "from_cli", "from_cli", config);
         } else {
             fprintf(stderr, "No query seq given!");
             /* is caught in getArg already -- alternative run seq against itself!? */

@@ -21,6 +21,7 @@
 #include "cli.h"
 #include "dsm.h"
 #include "align/linspace.h"
+#include "memory/ByteBuffer.hpp"
 
 namespace {
 
@@ -46,13 +47,12 @@ private:
     std::uint64_t m_state;
 };
 
-std::vector<unsigned char> make_sequence(int length, std::uint64_t seed)
+void make_sequence(ByteBuffer& seq, int length, std::uint64_t seed)
 {
     Lcg rng(seed);
-    std::vector<unsigned char> seq(length);
+    seq.clear();
     for (int i = 0; i < length; i++)
-        seq[i] = rng.next_base();
-    return seq;
+        seq.push_back(static_cast<char>(rng.next_base()));
 }
 
 // The production invocation: -d 30 -m su95_noGU -n 0 -p2.
@@ -75,8 +75,10 @@ config_st bench_config(int min_score)
 // swallowed: what is being timed is the search, not the terminal.
 double measure(int min_score, int repeats)
 {
-    const auto query = make_sequence(kQueryLength, 0x5eed);
-    const auto target = make_sequence(kTargetLength, 0xf00d);
+    ByteBuffer query;
+    ByteBuffer target;
+    make_sequence(query, kQueryLength, 0x5eed);
+    make_sequence(target, kTargetLength, 0xf00d);
     const config_st config = bench_config(min_score);
 
     short dsm[6][6][6][6];
@@ -87,9 +89,7 @@ double measure(int min_score, int repeats)
     testing::internal::CaptureStdout();
     const auto start = std::chrono::steady_clock::now();
     for (int r = 0; r < repeats; r++) {
-        RIs_linSpace(const_cast<unsigned char*>(query.data()),
-                     const_cast<unsigned char*>(target.data()), kQueryLength, kTargetLength, dsm,
-                     config.min_score, "q", "t", config);
+        RIs_linSpace(query, target, dsm, config.min_score, "q", "t", config);
     }
     const auto elapsed = std::chrono::steady_clock::now() - start;
     testing::internal::GetCapturedStdout();

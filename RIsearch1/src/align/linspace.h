@@ -1,51 +1,37 @@
 #pragma once
 
+#include <climits>
+#include <cstdio>
+
 #include "HitReporter.h"
-#include "math/Matrix.h"
 #include "RunningMax.h"
 #include "align/optimization/QueryProfile.h"
-
-#include <cstdio>
-#include <climits>
-
-#include "force_start.h"
-#include "nucleotide.h"
-
-#include "operations.h"
+#include "cli.h"
+#include "energy.hpp"
+#include "memory/ByteBuffer.hpp"
 #include "memory/MallocRAII.hpp"
+#include "nucleotide.h"
+#include "operations.h"
 #include "optimization/RowTerms.h"
 
-
 static void
-RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric representation */
-             const unsigned char* target_sequence, /* target sequence */
-             std::uint32_t m,                      /* query seq length */
-             std::uint32_t n,                      /* target seq length */
+RIs_linSpace(const ByteBuffer& query_sequence_ix,  // query sequence numerical representation
+             const ByteBuffer& target_sequence_ix, // target sequence numerical representation
              short dsm[6][6][6][6],                /* scoring matrix -- TODO variable length!? */
              int threshold,                        /* give out hits higher than that */
              const char* qname,                    /* query name */
              const char* tname,                    /* target name */
              const config_st& config)
 {
-    // Prepare for RIs calls:
-    const auto window = config.tblen + 1;
-    MatrixInt M_RI_RAII(window, window);  /* (Mis)Match */
-    MatrixInt Ix_RI_RAII(window, window); /* Insertion in x(=query), so x paired to gap (in y) */
-    MatrixInt Iy_RI_RAII(window, window); /* Insertion(=bulge) in y(=target) */
-    int** M_RI = M_RI_RAII.get();
-    int** Ix_RI = Ix_RI_RAII.get();
-    int** Iy_RI = Iy_RI_RAII.get();
+    const auto m = static_cast<short>(query_sequence_ix.size());
+    const auto n = static_cast<int>(target_sequence_ix.size());
+    const auto* target_sequence = target_sequence_ix.unsigned_data();
+    const auto* query_sequence = query_sequence_ix.unsigned_data();
 
-
-    const auto reference = reference_from_matrix(config.mat_name);
     RunningMax running_max{};
-
 
     MallocRAII<int> hits_score(n);
     MallocRAII<int> hits_pos(n);
-
-    MallocRAII<unsigned char> tmpQseq(config.tblen);
-    MallocRAII<unsigned char> tmpTseq(config.tblen);
 
     const auto alignment_capacity = static_cast<int>(1.5 * config.tblen);
     IA maxHit(alignment_capacity);
@@ -169,7 +155,6 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
         /* finished init of i=1 col */
 
 
-
         for (auto i = 2u; i <= m; i++) {
             M[currentRow][i] = max4(
                 /* coming from a match */
@@ -237,21 +222,21 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
         return;
     }
 
-    auto j = n;   /* hits_score is 0-based over rows 1..n, so index j-1 holds row j */
+    auto j = n; /* hits_score is 0-based over rows 1..n, so index j-1 holds row j */
     while (j--) {
         if (hits_score[j] <= threshold) {
             continue;
         }
         /* Look back up to `vicinity` rows and take the best of them. */
-        auto tmp = MIN(config.vicinity, j);   /* how far back we may look   */
-        const auto resume_at = j - tmp++;      /* where the scan resumes     */
-        auto locMax = 0u;                       /* offset of the best so far  */
+        auto tmp = MIN(config.vicinity, j); /* how far back we may look   */
+        const auto resume_at = j - tmp++;   /* where the scan resumes     */
+        auto locMax = 0u;                   /* offset of the best so far  */
         while (--tmp) {
             if (hits_score[j - tmp] > hits_score[j - locMax]) {
                 locMax = tmp;
             }
         }
-        j -= locMax;                           /* move onto the window's best */
+        j -= locMax; /* move onto the window's best */
 
         reporter.report(hits_pos[j], j + 1, hits_score[j], true);
 
@@ -261,5 +246,4 @@ RIs_linSpace(const unsigned char* query_sequence,  /* query sequence - numeric r
     if (config.printShort == 3) {
         printf("%s\t%s\t%d\n", qname, tname, reporter.hitcount());
     }
-
 }

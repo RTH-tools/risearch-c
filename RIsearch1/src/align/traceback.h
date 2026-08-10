@@ -5,13 +5,11 @@
 #include "InteractionAlignment.h"
 #include "RunningMax.h"
 #include "cli.h"
-#include "debug_print.h"
+#include "memory/ByteBuffer.hpp"
+#include "nucleotide.h" /* GAP, NEGINF */
 #include "operations.h"
-#include "string_util.h"
 #include "optimization/QueryProfile.h" /* QueryProfile, RowTerms */
-#include "nucleotide.h"                /* GAP, NEGINF */
-#include "operations.h"                /* max3, max4 — already there */
-
+#include "string_util.h"
 
 enum class TraceState { TRACE_M = 0, TRACE_IX = 1, TRACE_IY = 2, TRACE_DONE = 3 };
 
@@ -86,8 +84,7 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
     // Use this  QueryProfile to fetch terms that ignore the previous target nt (GAP)
     // and relate to first target nt (target_seq[0])
     const RowTerms* T = profile.row(QueryProfile::context(GAP, target_seq[0]));
-    const int* const ix_from_m_1 =
-        profile.ix_from_m(QueryProfile::context(GAP, target_seq[0]));
+    const int* const ix_from_m_1 = profile.ix_from_m(QueryProfile::context(GAP, target_seq[0]));
     const int* const ix_ext = profile.ix_extend();
 
     M[1][1] = T[q_offset + 1].m_open;
@@ -210,11 +207,9 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
         case TraceState::TRACE_IX: {
             // in this case, t_prev doesn't matter so we put it as GAP
             // avoids bugs in the j == 1 case.
-            const auto& t = profile.row(QueryProfile::context(GAP, target_seq[j - 1]))[qp];
-
             /* seq1(query) paired to a gap (in target) */
-            if (Ix[i][j] == M[i - 1][j] +
-                    profile.ix_from_m(QueryProfile::context(GAP, target_seq[j - 1]))[qp]) {
+            if (Ix[i][j] == M[i - 1][j] + profile.ix_from_m(
+                                              QueryProfile::context(GAP, target_seq[j - 1]))[qp]) {
                 k = TraceState::TRACE_M; /* open a new gap coming from match */
             } else if (Ix[i][j] == Ix[i - 1][j] + ix_ext[qp]) {
                 k = TraceState::TRACE_IX; /* extend existing gap */
