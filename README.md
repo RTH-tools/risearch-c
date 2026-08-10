@@ -8,6 +8,22 @@ live upstream at [RTH-tools/risearch](https://github.com/RTH-tools/risearch); th
 were removed here because nothing downstream of this fork uses them. Their history
 is still in this repository if you need it.
 
+## Main changes of this fork 
+
+The fork is actively maintained, and focusing on the RISearch1 executable,
+especially the standard linSpace path. The main goals of the fork are:
+* Improve correctness and bugfixes (SIGSEGV, memory leaks, hangs etc)
+* Improve readability (DRY, functions, classes, naming etc)
+* Convert to lightweight C++
+* Add tests, both logical and regression
+* MAIN GOAL: improve speed with known available techniques.
+
+As a former C++ dev that does not have experience with SIMD, 
+I focused on testing, and  having readable code so I understand it. 
+After that, we cumulatively improved about ~2.6x the performance from upstream fork 
+*while being bit identical*. 
+All code except SIMD was reviewed, and SIMD will be reviewed and tested in the following days.
+
 ## Python package
 
 A precompiled binary from this fork is published to PyPI as `risearch-tauso`, so
