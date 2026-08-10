@@ -9,11 +9,14 @@
 
 static void usage(const char* progname)
 {
-    /* Two versions: RIsearch1 1.2 is upstream; the second line is this fork,
-       whose version comes from pyproject.toml via CMake. */
-    fprintf(stderr, "====== RIsearch1 ver 1.2 ======\n= RNA-RNA interaction search =\n");
-    fprintf(stderr, "= risearch-tauso %-11s =\n", RISEARCH_TAUSO_VERSION);
-    fprintf(stderr, "=   Contact: wenzel@rth.dk   =\n==============================\n\n");
+    /* This is the fork, not upstream: the search core has been rewritten and
+       some results differ. Report our own version -- which CMake reads from
+       pyproject.toml -- and name upstream as provenance rather than identity. */
+    fprintf(stderr, "===== RIsearch-TAUSO %-9s =====\n", RISEARCH_TAUSO_VERSION);
+    fprintf(stderr, "=  modified fork of RIsearch1 1.2  =\n");
+    fprintf(stderr, "=    RNA-RNA interaction search    =\n");
+    fprintf(stderr, "=  upstream contact: wenzel@rth.dk =\n");
+    fprintf(stderr, "====================================\n\n");
     fprintf(stderr, "Usage: \t%s [ARGUMENTS]\n", progname);
     fprintf(stderr, "\n   [INPUT]\n");
     fprintf(stderr, "\t-q <file> Fasta file containing query sequence(s)\n");

@@ -32,9 +32,9 @@ foreach(header ${RISEARCH1_HEADERS})
 endforeach()
 list(REMOVE_DUPLICATES RISEARCH1_INCLUDES)
 
-# The banner reports two versions: RIsearch1's own (upstream, 1.2) and this
-# fork's package version. Read the latter from pyproject.toml so there is one
-# place to bump. Falls back when RIsearch1/ is built outside the repo.
+# The usage banner reports this fork's version, not upstream's. Read it from
+# pyproject.toml so there is one place to bump; fall back when RIsearch1/ is
+# configured outside the repository.
 set(RISEARCH_TAUSO_VERSION "dev")
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../pyproject.toml")
     file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../pyproject.toml" _pyproject)
