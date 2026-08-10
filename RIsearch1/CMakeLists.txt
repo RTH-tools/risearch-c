@@ -32,7 +32,21 @@ foreach(header ${RISEARCH1_HEADERS})
 endforeach()
 list(REMOVE_DUPLICATES RISEARCH1_INCLUDES)
 
-set(RISEARCH1_DEFINES MATPATH="${RISEARCH_MATPATH}" RISVERSION=1)
+# The banner reports two versions: RIsearch1's own (upstream, 1.2) and this
+# fork's package version. Read the latter from pyproject.toml so there is one
+# place to bump. Falls back when RIsearch1/ is built outside the repo.
+set(RISEARCH_TAUSO_VERSION "dev")
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../pyproject.toml")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../pyproject.toml" _pyproject)
+    string(REGEX MATCH "\nversion = \"([0-9]+\.[0-9]+\.[0-9]+)\"" _unused "${_pyproject}")
+    if(CMAKE_MATCH_1)
+        set(RISEARCH_TAUSO_VERSION "${CMAKE_MATCH_1}")
+    endif()
+endif()
+message(STATUS "RIsearch1: risearch-tauso version ${RISEARCH_TAUSO_VERSION}")
+
+set(RISEARCH1_DEFINES MATPATH="${RISEARCH_MATPATH}" RISVERSION=1
+    RISEARCH_TAUSO_VERSION="${RISEARCH_TAUSO_VERSION}")
 # -fpermissive downgrades the void*-to-T* conversions that C allows implicitly and
 # C++ does not. It is scaffolding for the C-to-C++ move: each malloc site wants a
 # static_cast, and this comes back out once they all have one.

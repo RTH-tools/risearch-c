@@ -9,7 +9,10 @@
 
 static void usage(const char* progname)
 {
+    /* Two versions: RIsearch1 1.2 is upstream; the second line is this fork,
+       whose version comes from pyproject.toml via CMake. */
     fprintf(stderr, "====== RIsearch1 ver 1.2 ======\n= RNA-RNA interaction search =\n");
+    fprintf(stderr, "= risearch-tauso %-11s =\n", RISEARCH_TAUSO_VERSION);
     fprintf(stderr, "=   Contact: wenzel@rth.dk   =\n==============================\n\n");
     fprintf(stderr, "Usage: \t%s [ARGUMENTS]\n", progname);
     fprintf(stderr, "\n   [INPUT]\n");
