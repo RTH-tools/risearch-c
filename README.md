@@ -32,6 +32,10 @@ python -m risearch_tauso -q query.fa -t target.fa
 The PyPI package is **not** canonical upstream RIsearch — it is the tauso-team
 fork. Use upstream if you want the unmodified tool.
 
+## Differences from upstream
+
+Bugs fixed relative to upstream are recorded in [BUGFIXES.md](BUGFIXES.md).
+
 ## Building from source
 
 Requires a C++17 compiler and CMake 3.20 or newer.
@@ -52,8 +56,9 @@ second with the debug tracing compiled in. The wheel build runs the same CMake v
 ```
 
 Unit tests for the nucleotide coding, the min/max helpers, the alignment symbols,
-the energy matrix and the FASTA reader; end-to-end tests that run `main()` in
-process with a constructed argv and assert on its output. Pass
+the energy matrix and the FASTA reader, including death tests for the inputs that
+are refused; end-to-end tests that run `main()` in process with a constructed argv
+and assert on its output; and throughput benchmarks under `Performance.*`. Pass
 `-DRISEARCH_BUILD_TESTS=OFF` to skip googletest entirely, as the wheel build does.
 
 ## Running
