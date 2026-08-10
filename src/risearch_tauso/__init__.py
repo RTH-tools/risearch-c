@@ -7,12 +7,20 @@ this package does not wrap its CLI semantics.
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _installed_version
 from importlib.resources import files
 from pathlib import Path
 
 __all__ = ["executable_path", "__version__"]
 
-__version__ = "1.2.0"
+# Read back from the installed distribution, whose version comes from
+# pyproject.toml -- the same place CMake reads it for the binary's banner. A
+# literal here is a second copy that nothing checks against the first.
+try:
+    __version__ = _installed_version("risearch-tauso")
+except PackageNotFoundError:  # running from a source tree, not installed
+    __version__ = "0.0.0+unknown"
 
 _BINARY_NAME = "RIsearch"
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "risearch-tauso"
-version = "1.4.0"
+version = "1.4.1"
 description = "Prebuilt RIsearch1 binary (RNA-RNA / RNA-DNA / DNA-DNA interaction search), tauso fork, packaged for Python."
 readme = "README.md"
 requires-python = ">=3.9"
