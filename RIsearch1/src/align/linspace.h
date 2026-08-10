@@ -12,7 +12,6 @@
 #include "memory/MallocRAII.hpp"
 #include "nucleotide.h"
 #include "operations.h"
-#include "optimization/RowTerms.h"
 
 static void
 RIs_linSpace(const ByteBuffer& query_sequence_ix,  // query sequence numerical representation
@@ -45,7 +44,6 @@ RIs_linSpace(const ByteBuffer& query_sequence_ix,  // query sequence numerical r
 
 
     const QueryProfile profile(query_sequence, m, dsm);
-    const int* ix_extend = profile.ix_extend();
 
     M[0][0] = Ix[0][0] = Iy[0][0] = 0;
 
@@ -129,17 +127,16 @@ RIs_linSpace(const ByteBuffer& query_sequence_ix,  // query sequence numerical r
 
         /* DSM caching optimization */
         const auto context = QueryProfile::context(target_prev, target_current);
-        const RowTerms* T = profile.row(context);
-        const int* const ix_from_m = profile.ix_from_m(context);
-        const auto iy_ext = profile.iy_extend(context);
+        const auto T = profile.row(context);
+        const auto iy_ext = T.iy_extend;
         /* DSM caching optimization */
 
 
         /* Column 1 is the query's first nt, nothing can precede it */
-        M[currentRow][1] = MAX(0, T[1].m_open);
+        M[currentRow][1] = MAX(0, T.m_open[1]);
 
         // Track only the best value, the position is recovered later (OPTIMIZATION)
-        auto row_max = M[currentRow][1] + T[1].close;
+        auto row_max = M[currentRow][1] + T.close[1];
 
         // Ix bulges a query nt, impossible in 1st nucleotide
         Ix[currentRow][1] = NEGINF;
@@ -148,7 +145,7 @@ RIs_linSpace(const ByteBuffer& query_sequence_ix,  // query sequence numerical r
         // Only M can win row max, so we don't take this as a candidate
         Iy[currentRow][1] = MAX(
             // We are now opening the bulge
-            M[lastRow][1] + T[1].iy_from_m,
+            M[lastRow][1] + T.iy_from_m[1],
             // We are extending a bulge
             Iy[lastRow][1] + iy_ext);
 
@@ -158,23 +155,23 @@ RIs_linSpace(const ByteBuffer& query_sequence_ix,  // query sequence numerical r
         for (auto i = 2u; i <= m; i++) {
             M[currentRow][i] = max4(
                 /* coming from a match */
-                M[lastRow][i - 1] != 0 ? M[lastRow][i - 1] + T[i].m_from_m : -1,
+                M[lastRow][i - 1] != 0 ? M[lastRow][i - 1] + T.m_from_m[i] : -1,
                 /* coming from gap in target */
-                Ix[lastRow][i - 1] + T[i].m_from_ix,
+                Ix[lastRow][i - 1] + T.m_from_ix[i],
                 /* coming from gap in query */
-                Iy[lastRow][i - 1] + T[i].m_from_iy,
+                Iy[lastRow][i - 1] + T.m_from_iy[i],
                 /* start fresh */
-                T[i].m_open);
+                T.m_open[i]);
 
             // Set max now, position is recovered later (OPTIMIZATION)
-            row_max = MAX(row_max, M[currentRow][i] + T[i].close);
+            row_max = MAX(row_max, M[currentRow][i] + T.close[i]);
 
             /**
              * Iy: target nt against a gap
              */
             Iy[currentRow][i] = MAX(
                 // pair at previous row, now bulge
-                M[lastRow][i] + T[i].iy_from_m,
+                M[lastRow][i] + T.iy_from_m[i],
                 // already bulging, add one more
                 Iy[lastRow][i] + iy_ext);
         }
@@ -186,16 +183,16 @@ RIs_linSpace(const ByteBuffer& query_sequence_ix,  // query sequence numerical r
              */
             Ix[currentRow][i] = MAX(
                 // pair at i - 1, now bulge
-                M[currentRow][i - 1] + ix_from_m[i],
+                M[currentRow][i - 1] + T.ix_from_m[i],
                 // already bulging, add one more
-                Ix[currentRow][i - 1] + ix_extend[i]);
+                Ix[currentRow][i - 1] + T.ix_extend[i]);
         }
 
         // Re-infer the row max's position
         auto row_pos = 1u;
         if (row_max > threshold || row_max > running_max.score) {
             for (auto i = 1u; i <= m; ++i) {
-                if (M[currentRow][i] + T[i].close == row_max) {
+                if (M[currentRow][i] + T.close[i] == row_max) {
                     row_pos = i;
                     break;
                 }

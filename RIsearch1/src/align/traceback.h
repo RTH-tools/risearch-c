@@ -8,7 +8,7 @@
 #include "memory/ByteBuffer.hpp"
 #include "nucleotide.h" /* GAP, NEGINF */
 #include "operations.h"
-#include "optimization/QueryProfile.h" /* QueryProfile, RowTerms */
+#include "optimization/QueryProfile.h"
 #include "string_util.h"
 
 enum class TraceState { TRACE_M = 0, TRACE_IX = 1, TRACE_IY = 2, TRACE_DONE = 3 };
@@ -83,12 +83,12 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
 
     // Use this  QueryProfile to fetch terms that ignore the previous target nt (GAP)
     // and relate to first target nt (target_seq[0])
-    const RowTerms* T = profile.row(QueryProfile::context(GAP, target_seq[0]));
-    const int* const ix_from_m_1 = profile.ix_from_m(QueryProfile::context(GAP, target_seq[0]));
+    const auto T = profile.row(QueryProfile::context(GAP, target_seq[0]));
+    const int* const ix_from_m_1 = T.ix_from_m;
     const int* const ix_ext = profile.ix_extend();
 
-    M[1][1] = T[q_offset + 1].m_open;
-    running_max.set(M[1][1] + T[q_offset + 1].close, 1, 1);
+    M[1][1] = T.m_open[q_offset + 1];
+    running_max.set(M[1][1] + T.close[q_offset + 1], 1, 1);
 
     /* (1,1) cell can not be in Ix or Iy state. */
     Ix[1][1] = Iy[1][1] = NEGINF;
@@ -97,8 +97,8 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
     /* init j=1 col */
     for (auto i = 2; i <= m; i++) {
         const auto qp = q_offset + i;
-        M[i][1] = T[qp].m_open;
-        running_max.set_if_better(M[i][1] + T[qp].close, i, 1);
+        M[i][1] = T.m_open[qp];
+        running_max.set_if_better(M[i][1] + T.close[qp], i, 1);
 
         Ix[i][1] = max3(M[i - 1][1] != 0 ? M[i - 1][1] + ix_from_m_1[qp] : -1,
                         Ix[i - 1][1] != 0 ? Ix[i - 1][1] + ix_ext[qp] : -1, 0);
@@ -110,15 +110,15 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
 
     for (auto j = 2; j <= n; j++) {
         const auto context = QueryProfile::context(target_seq[j - 2], target_seq[j - 1]);
-        const RowTerms& t = profile.row(context)[qp_first];
+        const auto t = profile.row(context);
 
-        M[1][j] = t.m_open;
-        running_max.set_if_better(M[1][j] + t.close, 1, j);
+        M[1][j] = t.m_open[qp_first];
+        running_max.set_if_better(M[1][j] + t.close[qp_first], 1, j);
 
         Ix[1][j] = NEGINF;
 
-        Iy[1][j] = max3(M[1][j - 1] != 0 ? M[1][j - 1] + t.iy_from_m : -1,
-                        Iy[1][j - 1] != 0 ? Iy[1][j - 1] + profile.iy_extend(context) : -1, 0);
+        Iy[1][j] = max3(M[1][j - 1] != 0 ? M[1][j - 1] + t.iy_from_m[qp_first] : -1,
+                        Iy[1][j - 1] != 0 ? Iy[1][j - 1] + profile.row(context).iy_extend : -1, 0);
     }
 
 
@@ -127,21 +127,21 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
 
         for (auto j = 2; j <= n; j++) {
             const auto context = QueryProfile::context(target_seq[j - 2], target_seq[j - 1]);
-            const RowTerms& t = profile.row(context)[qp];
-            const int* const IXM = profile.ix_from_m(context);
-            const auto iy_ext = profile.iy_extend(context);
+            const auto t = profile.row(context);
+            const int* const IXM = t.ix_from_m;
+            const auto iy_ext = t.iy_extend;
 
             M[i][j] = max4(
                 // continue from a pair
-                M[i - 1][j - 1] != 0 ? M[i - 1][j - 1] + t.m_from_m : -1,
+                M[i - 1][j - 1] != 0 ? M[i - 1][j - 1] + t.m_from_m[qp] : -1,
                 // close a bulge in query
-                Ix[i - 1][j - 1] != 0 ? Ix[i - 1][j - 1] + t.m_from_ix : -1,
+                Ix[i - 1][j - 1] != 0 ? Ix[i - 1][j - 1] + t.m_from_ix[qp] : -1,
                 // close a bulge in target
-                Iy[i - 1][j - 1] != 0 ? Iy[i - 1][j - 1] + t.m_from_iy : -1,
+                Iy[i - 1][j - 1] != 0 ? Iy[i - 1][j - 1] + t.m_from_iy[qp] : -1,
                 // start fresh
-                t.m_open);
+                t.m_open[qp]);
 
-            running_max.set_if_better(M[i][j] + t.close, i, j);
+            running_max.set_if_better(M[i][j] + t.close[qp], i, j);
 
             Ix[i][j] = max3(
                 // Open a bulge in query
@@ -151,7 +151,7 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
 
             Iy[i][j] = max3(
                 // Open a bulge in target
-                M[i][j - 1] != 0 ? M[i][j - 1] + t.iy_from_m : -1,
+                M[i][j - 1] != 0 ? M[i][j - 1] + t.iy_from_m[qp] : -1,
                 // Continue a bulge in target
                 Iy[i][j - 1] != 0 ? Iy[i][j - 1] + iy_ext : -1, 0);
         }
@@ -184,18 +184,18 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
         switch (k) {
         case TraceState::TRACE_M: {
             if (const auto open_score =
-                    profile.row(QueryProfile::context(GAP, target_seq[j - 1]))[qp].m_open;
+                    profile.row(QueryProfile::context(GAP, target_seq[j - 1])).m_open[qp];
                 M[i][j] == open_score) {
                 k = TraceState::TRACE_DONE;
             } else {
                 const auto& t =
-                    profile.row(QueryProfile::context(target_seq[j - 2], target_seq[j - 1]))[qp];
+                    profile.row(QueryProfile::context(target_seq[j - 2], target_seq[j - 1]));
 
-                if (M[i][j] == M[i - 1][j - 1] + t.m_from_m) {
+                if (M[i][j] == M[i - 1][j - 1] + t.m_from_m[qp]) {
                     k = TraceState::TRACE_M;
-                } else if (M[i][j] == Ix[i - 1][j - 1] + t.m_from_ix) {
+                } else if (M[i][j] == Ix[i - 1][j - 1] + t.m_from_ix[qp]) {
                     k = TraceState::TRACE_IX;
-                } else if (M[i][j] == Iy[i - 1][j - 1] + t.m_from_iy) {
+                } else if (M[i][j] == Iy[i - 1][j - 1] + t.m_from_iy[qp]) {
                     k = TraceState::TRACE_IY;
                 } else {
                     printf("unexpected value in k=0.\n");
@@ -208,12 +208,12 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
             // in this case, t_prev doesn't matter so we put it as GAP
             // avoids bugs in the j == 1 case.
             /* seq1(query) paired to a gap (in target) */
-            if (Ix[i][j] == M[i - 1][j] + profile.ix_from_m(
-                                              QueryProfile::context(GAP, target_seq[j - 1]))[qp]) {
+            const auto gap_row = profile.row(QueryProfile::context(GAP, target_seq[j - 1]));
+            if (Ix[i][j] == M[i - 1][j] + gap_row.ix_from_m[qp]) {
                 k = TraceState::TRACE_M; /* open a new gap coming from match */
             } else if (Ix[i][j] == Ix[i - 1][j] + ix_ext[qp]) {
                 k = TraceState::TRACE_IX; /* extend existing gap */
-            } else if (Ix[i][j] == profile.row(QueryProfile::context(GAP, GAP))[qp].m_open) {
+            } else if (Ix[i][j] == profile.row(QueryProfile::context(GAP, GAP)).m_open[qp]) {
                 fprintf(stderr, "\nErr: This alignment starts in a gap - not even an option!?\n");
                 k = TraceState::TRACE_DONE; /* start new alignment with gap; not possible, prevented
                                                by scoring... */
@@ -227,12 +227,12 @@ static void RIs(const unsigned char* query_seq,  /* query sequence - numeric rep
             const auto context = QueryProfile::context(target_seq[j - 2], target_seq[j - 1]);
 
             /* seq2(target) paired to a gap (in query) */
-            if (Iy[i][j] == M[i][j - 1] + profile.row(context)[qp].iy_from_m) {
+            if (Iy[i][j] == M[i][j - 1] + profile.row(context).iy_from_m[qp]) {
                 k = TraceState::TRACE_M; /* open a new gap coming from match */
-            } else if (Iy[i][j] == Iy[i][j - 1] + profile.iy_extend(context)) {
+            } else if (Iy[i][j] == Iy[i][j - 1] + profile.row(context).iy_extend) {
                 k = TraceState::TRACE_IY; /* extend existing gap */
             } else if (Iy[i][j] ==
-                       profile.iy_extend(QueryProfile::context(GAP, target_seq[j - 1]))) {
+                       profile.row(QueryProfile::context(GAP, target_seq[j - 1])).iy_extend) {
                 k = TraceState::TRACE_DONE;
                 fprintf(stderr, "\nErr: This alignment starts in a gap - not even an option!?\n");
             } else {
