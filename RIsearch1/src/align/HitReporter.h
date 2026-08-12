@@ -33,7 +33,7 @@ public:
           m_reference(reference_from_matrix(config.mat_name)),
           m_M(config.tblen + 1, config.tblen + 1), m_Ix(config.tblen + 1, config.tblen + 1),
           m_Iy(config.tblen + 1, config.tblen + 1), m_qseq(config.tblen), m_tseq(config.tblen),
-          m_hit(static_cast<int>(1.5 * config.tblen))
+          m_best(config.tblen + 1), m_hit(static_cast<int>(1.5 * config.tblen))
     {
     }
 
@@ -44,7 +44,7 @@ public:
         const auto w = extract(pos_i, pos_j);
 
         RIs(m_qseq.get(), m_tseq.get(), w.qlen, w.tlen, &m_hit, m_config, m_M.get(), m_Ix.get(),
-            m_Iy.get(), m_profile, w.qbeg - 1);
+            m_Iy.get(), m_profile, w.qbeg - 1, m_best.get());
 
         const auto energy =
             (m_hit.max + m_config.extension_penalty * m_hit.nucleotide_count() - m_reference) /
@@ -138,6 +138,8 @@ private:
     /* Scratch, reused across every hit. */
     MatrixInt m_M, m_Ix, m_Iy;
     MallocRAII<unsigned char> m_qseq, m_tseq;
+    /* Best M + close per query column; transpose_best_cell reads it. */
+    MallocRAII<int> m_best;
     IA m_hit;
 
     int m_hitcount = 0;

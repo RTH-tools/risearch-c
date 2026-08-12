@@ -73,7 +73,7 @@ RIs_linSpace(const ByteBuffer& query_sequence_ix,  // query sequence numerical r
     // n - 1 is the last nt in target
     M[1][1] = dsm[GAP][query_sequence[0]][GAP][target_sequence[n - 1]];
 
-    RunningRowMax running_row_max{};
+    RunningVectorMax running_row_max{};
     running_row_max.set(M[1][1] + dsm[query_sequence[0]][GAP][target_sequence[n - 1]][GAP], 1);
 
     /* (1,1) cell can not be in Ix or Iy state. */
