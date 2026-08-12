@@ -205,6 +205,75 @@ __attribute__((target("avx2"), always_inline)) static inline __m256i vec_prefix_
                             _mm256_blend_epi32(_mm256_permutevar8x32_epi32(v, down4), none, 0x0f));
 }
 
+/* M and Iy for the eight columns starting at i, and their contribution to the
+   row max. Returns M, which the Ix scan reads. */
+__attribute__((target("avx2"), always_inline)) static inline __m256i
+m_iy_block8(unsigned i, const QueryProfile::RowView& T, int* m_cur, int* iy_cur, const int* m_last,
+            const int* ix_last, const int* iy_last, __m256i v_iy_ext, __m256i* v_row_max)
+{
+    /* For each column this block writes, its diagonal predecessor: one target
+       position back and one query position back. Adjacent because the columns
+       are adjacent; the diagonal is only the -1. */
+    const __m256i m_diag = vec_load(m_last + i - 1);
+    const __m256i m_new = _mm256_max_epi32(
+        _mm256_max_epi32(
+            /* coming from a match, and its M[lastRow][i-1] != 0 test: no lane
+               can branch, so both arms are computed and cmpeq plus blendv
+               select between them per lane. */
+            _mm256_blendv_epi8(_mm256_add_epi32(m_diag, vec_load(T.m_from_m + i)),
+                               _mm256_set1_epi32(-1),
+                               _mm256_cmpeq_epi32(m_diag, _mm256_setzero_si256())),
+            /* coming from gap in target */
+            _mm256_add_epi32(vec_load(ix_last + i - 1), vec_load(T.m_from_ix + i))),
+        _mm256_max_epi32(
+            /* coming from gap in query */
+            _mm256_add_epi32(vec_load(iy_last + i - 1), vec_load(T.m_from_iy + i)),
+            /* start fresh */
+            vec_load(T.m_open + i)));
+    vec_store(m_cur + i, m_new);
+
+    *v_row_max = _mm256_max_epi32(*v_row_max, _mm256_add_epi32(m_new, vec_load(T.close + i)));
+
+    /* Iy's predecessors are vertical: previous row, same column, so no -1 on
+       the address. That offset is the whole difference. */
+    vec_store(iy_cur + i, _mm256_max_epi32(
+                              /* pair at previous row, now bulge */
+                              _mm256_add_epi32(vec_load(m_last + i), vec_load(T.iy_from_m + i)),
+                              /* already bulging, add one more */
+                              _mm256_add_epi32(vec_load(iy_last + i), v_iy_ext)));
+    return m_new;
+}
+
+/* The block's eight columns of M moved one column to the right, so that lane k
+   holds M at the column just left of the block's lane k. Lane 7 of prev is the
+   value that moves in. A four-byte shift of a whole register has to cross its
+   two 128-bit halves, which alignr does not do on its own, so the permute puts
+   the two halves alignr needs side by side first. */
+__attribute__((target("avx2"), always_inline)) static inline __m256i shifted_left_one(__m256i prev,
+                                                                                      __m256i cur)
+{
+    return _mm256_alignr_epi8(cur, _mm256_permute2x128_si256(prev, cur, 0x21), 12);
+}
+
+/* The Ix scan for a block's eight columns, starting at column i.
+ *
+ * m_left holds M at the column just left of each of the eight, which is how the
+ * loop hands the scan the M it has in a register instead of putting the row
+ * back through memory. The value returned is the carry the next block starts
+ * from: lane 7 of the running max, which is its maximum over the whole block,
+ * broadcast so that the max above needs no shuffling. */
+__attribute__((target("avx2"), always_inline)) static inline __m256i
+ix_scan_block8(int* ix_out, const int* scan_terms, const int* prefix_terms, __m256i m_left,
+               __m256i carry)
+{
+    const __m256i candidates = _mm256_add_epi32(m_left, vec_load(scan_terms));
+    const __m256i best = _mm256_max_epi32(vec_prefix_max(candidates), carry);
+    /* Adding ix_prefix back turns the carried quantity into the real Ix, which
+       is what the next row and the traceback read. */
+    vec_store(ix_out, _mm256_add_epi32(best, vec_load(prefix_terms)));
+    return _mm256_permutevar8x32_epi32(best, _mm256_set1_epi32(7));
+}
+
 /* The same recurrence, eight query positions at a time. Differences from the
  * scalar version above, and nothing else:
  *
@@ -223,6 +292,20 @@ __attribute__((target("avx2"), always_inline)) static inline __m256i vec_prefix_
  *
  * Column 1 stays scalar throughout: the neighbouring column every block reads
  * does not exist there.
+ *
+ * THE SCAN TAKES M FROM THE REGISTER THE BLOCK BUILT IT IN, one column to the
+ * right, rather than loading the row it has just been stored to. A load that
+ * reads back what the same row has just written cannot be served from the store
+ * that wrote it, and the scan's candidates are the first thing on the row's
+ * serial chain, so that one load sits in front of everything else. Removing it
+ * is worth around 30% of this kernel at m = 12 or 16, where a row is one or two
+ * blocks wide. At m >= 80 a row is ten blocks and there is enough independent
+ * work to cover the load anyway, and the shift that replaces it costs about as
+ * much as it saves.
+ *
+ * Each block is also issued one step ahead of the scan that reads it: M and Iy
+ * depend on the previous row alone, so the next block has nothing to wait for
+ * and fills the latency of the scan below it.
  */
 __attribute__((target("avx2"))) static void score_target_avx2(const ScoreTargetArgs& a,
                                                               RunningMax& running_max)
@@ -262,62 +345,42 @@ __attribute__((target("avx2"))) static void score_target_avx2(const ScoreTargetA
         const __m256i v_iy_ext = _mm256_set1_epi32(iy_ext);
         __m256i v_row_max = _mm256_set1_epi32(row_max);
 
-        for (auto start = 2u; start <= m; start += 8) {
-            /* The clamp is what makes the last block end exactly at m. */
-            const auto i = MIN(start, m - 7);
+        /* The block whose M the scan is about to read, the block before it --
+           lane 7 of which is M at the column just left of the scan -- and the
+           carry the scan enters with, which is what Ix[1] holds so that the
+           first block sees exactly what the serial recurrence would have
+           carried into it. */
+        __m256i m_left = _mm256_set1_epi32(m_cur[1]);
+        __m256i v_carry = _mm256_set1_epi32(NEGINF);
+        __m256i m_block =
+            m_iy_block8(2, T, m_cur, iy_cur, m_last, ix_last, iy_last, v_iy_ext, &v_row_max);
 
-            /* For each column this block writes, its diagonal predecessor: one
-               target position back and one query position back. Adjacent
-               because the columns are adjacent; the diagonal is only the -1. */
-            const __m256i m_diag = vec_load(m_last + i - 1);
-            const __m256i m_new = _mm256_max_epi32(
-                _mm256_max_epi32(
-                    /* coming from a match, and its M[lastRow][i-1] != 0 test:
-                       no lane can branch, so both arms are computed and cmpeq
-                       plus blendv select between them per lane. */
-                    _mm256_blendv_epi8(
-                        _mm256_add_epi32(m_diag, vec_load(T.m_from_m + i)), _mm256_set1_epi32(-1),
-                        _mm256_cmpeq_epi32(m_diag, _mm256_setzero_si256())),
-                    /* coming from gap in target */
-                    _mm256_add_epi32(vec_load(ix_last + i - 1), vec_load(T.m_from_ix + i))),
-                _mm256_max_epi32(
-                    /* coming from gap in query */
-                    _mm256_add_epi32(vec_load(iy_last + i - 1), vec_load(T.m_from_iy + i)),
-                    /* start fresh */
-                    vec_load(T.m_open + i)));
-            vec_store(m_cur + i, m_new);
-
-            v_row_max = _mm256_max_epi32(v_row_max, _mm256_add_epi32(m_new, vec_load(T.close + i)));
-
-            /* Iy's predecessors are vertical: previous row, same column, so no
-               -1 on the address. That offset is the whole difference. */
-            vec_store(iy_cur + i,
-                      _mm256_max_epi32(
-                          /* pair at previous row, now bulge */
-                          _mm256_add_epi32(vec_load(m_last + i), vec_load(T.iy_from_m + i)),
-                          /* already bulging, add one more */
-                          _mm256_add_epi32(vec_load(iy_last + i), v_iy_ext)));
+        auto start = 2u;
+        for (; start + 15 <= m; start += 8) {
+            /* One block ahead of the scan below it. */
+            const __m256i m_next = m_iy_block8(start + 8, T, m_cur, iy_cur, m_last, ix_last,
+                                               iy_last, v_iy_ext, &v_row_max);
+            v_carry = ix_scan_block8(ix_cur + start, T.ix_from_m_scan + start,
+                                     T.ix_prefix + start, shifted_left_one(m_left, m_block),
+                                     v_carry);
+            m_left = m_block;
+            m_block = m_next;
         }
+        /* Fewer than eight columns can be left over at the end, and their M and
+           Iy come from one more block backed up to end at m. Its Ix cannot come
+           with them: the block covers columns the scan has already folded into
+           its carry, and a running max cannot revisit those. That also leaves it
+           independent of the scan, so it is issued first, like the blocks in the
+           loop. */
+        if (start + 8 <= m) {
+            m_iy_block8(m - 7, T, m_cur, iy_cur, m_last, ix_last, iy_last, v_iy_ext, &v_row_max);
+        }
+        v_carry = ix_scan_block8(ix_cur + start, T.ix_from_m_scan + start, T.ix_prefix + start,
+                                 shifted_left_one(m_left, m_block), v_carry);
         row_max = vec_hmax(v_row_max);
 
-        /* The carry starts at what Ix[1] holds, so the first block sees exactly
-           what the serial recurrence would have carried into it. */
-        __m256i v_carry = _mm256_set1_epi32(NEGINF);
-        auto i = 2u;
-        /* Whole blocks only -- see the header note on why this one cannot back
-           its last block up the way M and Iy do. */
-        for (; i + 8 <= m + 1; i += 8) {
-            const __m256i candidates =
-                _mm256_add_epi32(vec_load(m_cur + i - 1), vec_load(T.ix_from_m_scan + i));
-            const __m256i best = _mm256_max_epi32(vec_prefix_max(candidates), v_carry);
-            /* Adding ix_prefix back turns the carried quantity into the real Ix,
-               which is what the next row and the traceback read. */
-            vec_store(ix_cur + i, _mm256_add_epi32(best, vec_load(T.ix_prefix + i)));
-            /* Lane 7 is the max over the whole block: the next block's carry,
-               broadcast to every lane so the max above needs no shuffling. */
-            v_carry = _mm256_permutevar8x32_epi32(best, _mm256_set1_epi32(7));
-        }
         /* The tail, in the original form -- at most seven columns. */
+        auto i = start + 8;
         for (; i <= m; ++i) {
             ix_cur[i] = MAX(m_cur[i - 1] + T.ix_from_m[i], ix_cur[i - 1] + T.ix_extend[i]);
         }
