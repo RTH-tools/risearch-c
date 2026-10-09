@@ -1,6 +1,8 @@
 # RIsearch
 RIsearch: a tool for large-scale RNA–RNA, RNA-DNA, and DNA-DNA interaction prediction
 
+**Note, this is a legacy release of RIsearch in C. Please consider switching to the re-write of [RIsearch in Rust](https://github.com/RTH-tools/risearch), which is being actively developed.**
+
 ## Installation
 
 ### RIsearch1
